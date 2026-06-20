@@ -4,6 +4,7 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
+    @MainActor private let store = UsageStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -20,6 +21,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(
             rootView: Text("Loading...").frame(width: 560, height: 200)
         )
+
+        store.startPolling()
+
+        Task { @MainActor in
+            while true {
+                self.updateStatusLabel()
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
+    }
+
+    @MainActor
+    private func updateStatusLabel() {
+        if let cost = store.totalCost(for: .today) {
+            statusItem.button?.title = String(format: " $%.2f", cost)
+        } else {
+            let count = store.filteredSessions(for: .today).count
+            statusItem.button?.title = count > 0 ? " \(count)" : ""
+        }
     }
 
     @objc private func togglePopover() {
