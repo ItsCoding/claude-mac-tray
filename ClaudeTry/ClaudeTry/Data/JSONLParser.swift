@@ -8,6 +8,19 @@ struct ParsedFile {
 actor JSONLParser {
     private var mtimeCache: [URL: Date] = [:]
 
+    // Two formatters: Claude Code sometimes writes fractional seconds, sometimes not.
+    // Stored as actor properties so they are allocated once, not on every parseFile call.
+    private let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private let isoWhole: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     func scan(rootURL: URL) async -> (sessions: [Session], memoryEvents: [MemoryEvent]) {
         var allSessions: [Session] = []
         var allMemoryEvents: [MemoryEvent] = []
@@ -28,21 +41,25 @@ actor JSONLParser {
 
             let mtime = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             if let mtime, mtimeCache[fileURL] == mtime { continue }
-            mtimeCache[fileURL] = mtime
+            if let mtime { mtimeCache[fileURL] = mtime }  // only cache when stat succeeded
 
             let projectPath = fileURL.deletingLastPathComponent().path
             let parsed = await parseFile(url: fileURL, projectPath: projectPath)
 
-            if !parsed.messages.isEmpty {
-                let session = Session(
-                    id: UUID(),
-                    projectPath: projectPath,
-                    startTime: parsed.messages.first!.timestamp,
-                    endTime: parsed.messages.last!.timestamp,
-                    messages: parsed.messages
-                )
-                allSessions.append(session)
+            guard !parsed.messages.isEmpty,
+                  let startTime = parsed.messages.first?.timestamp,
+                  let endTime = parsed.messages.last?.timestamp else {
+                allMemoryEvents.append(contentsOf: parsed.memoryEvents)
+                continue
             }
+            let session = Session(
+                id: UUID(),
+                projectPath: projectPath,
+                startTime: startTime,
+                endTime: endTime,
+                messages: parsed.messages
+            )
+            allSessions.append(session)
             allMemoryEvents.append(contentsOf: parsed.memoryEvents)
         }
 
@@ -50,18 +67,16 @@ actor JSONLParser {
     }
 
     func parseFile(url: URL, projectPath: String) async -> ParsedFile {
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
-            return ParsedFile(messages: [], memoryEvents: [])
+        let content: String? = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: try? String(contentsOf: url, encoding: .utf8))
+            }
         }
+        guard let content else { return ParsedFile(messages: [], memoryEvents: []) }
 
         var messages: [ClaudeMessage] = []
         var memoryEvents: [MemoryEvent] = []
         var seenMemoryPaths = Set<String>()
-        // Two formatters: Claude Code sometimes writes fractional seconds, sometimes not
-        let isoFractional = ISO8601DateFormatter()
-        isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let isoWhole = ISO8601DateFormatter()
-        isoWhole.formatOptions = [.withInternetDateTime]
         func parseDate(_ s: String) -> Date? { isoFractional.date(from: s) ?? isoWhole.date(from: s) }
 
         for line in content.components(separatedBy: .newlines) {
