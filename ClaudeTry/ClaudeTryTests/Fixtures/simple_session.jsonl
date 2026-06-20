@@ -1,0 +1,2 @@
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}],"model":"claude-sonnet-4-6","usage":{"input_tokens":150,"output_tokens":30,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}},"timestamp":"2026-06-20T10:00:00Z"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_1","name":"Bash","input":{"command":"ls"}}],"model":"claude-sonnet-4-6","usage":{"input_tokens":200,"output_tokens":10,"cache_read_input_tokens":50,"cache_creation_input_tokens":20}},"timestamp":"2026-06-20T10:01:00Z"}
