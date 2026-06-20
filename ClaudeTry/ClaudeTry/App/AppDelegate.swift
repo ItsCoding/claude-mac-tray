@@ -21,7 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover.behavior = .transient
         // PopoverRootView is wired in Task 6; placeholder until then
         popover.contentViewController = NSHostingController(
-            rootView: Text("Loading...").frame(width: 560, height: 200)
+            rootView: PopoverRootView().environment(store)
         )
 
         store.startPolling()
