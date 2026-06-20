@@ -1,0 +1,23 @@
+schemaVersion: 1
+enabledWorkflows:
+  - macos
+  - simulator
+  - debugging
+  - device
+  - project-discovery
+  - project-scaffolding
+  - simulator-management
+  - swift-package
+  - ui-automation
+  - utilities
+  - xcode-ide
+debug: false
+sentryDisabled: true
+setupPreferences:
+  platforms:
+    - iOS
+    - macOS
+sessionDefaults:
+  projectPath: ClaudeTry/ClaudeTry.xcodeproj
+  scheme: ClaudeTry
+  deviceId: A28375D3-EF88-5576-900D-E6AE3CFDB95B
