@@ -1,0 +1,12 @@
+{
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/App/AppDelegate.swift" : {
+    "abi-baseline-json" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry.abi.json",
+    "const-values" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary.swiftconstvalues",
+    "dependencies" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary.d",
+    "diagnostics" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary.dia",
+    "objc-header" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-Swift.h",
+    "swiftdoc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry.swiftdoc",
+    "swiftmodule" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry.swiftmodule",
+    "swiftsourceinfo" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry.swiftsourceinfo"
+  }
+}

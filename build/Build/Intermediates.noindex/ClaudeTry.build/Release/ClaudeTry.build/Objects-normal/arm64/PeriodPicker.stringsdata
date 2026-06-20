@@ -1,0 +1,16 @@
+{
+  "source": "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/Shared/PeriodPicker.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Period",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 7
+        }
+      }
+    ]
+  },
+  "version": 1
+}

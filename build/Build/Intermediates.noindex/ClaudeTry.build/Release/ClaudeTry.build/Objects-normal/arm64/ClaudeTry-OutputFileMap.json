@@ -1,0 +1,91 @@
+{
+  "" : {
+    "const-values" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary.swiftconstvalues",
+    "dependencies" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary.d",
+    "diagnostics" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary.dia",
+    "emit-module-dependencies" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary-emit-module.dia",
+    "pch" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTry-primary.swiftdeps"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/App/AppDelegate.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/AppDelegate.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/AppDelegate.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/AppDelegate.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/App/StatusBarIcon.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/StatusBarIcon.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/StatusBarIcon.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/StatusBarIcon.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/ClaudeTryApp.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTryApp.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTryApp.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ClaudeTryApp.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/ContentView.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Data/JSONLParser.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/JSONLParser.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/JSONLParser.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/JSONLParser.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Data/ModelPricing.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ModelPricing.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ModelPricing.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ModelPricing.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Data/Models.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/Models.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/Models.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/Models.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Data/Pricing.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/Pricing.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/Pricing.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/Pricing.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Data/UsageStore.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/UsageStore.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/UsageStore.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/UsageStore.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/OverviewTab.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/OverviewTab.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/OverviewTab.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/OverviewTab.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/PopoverRootView.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/PopoverRootView.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/PopoverRootView.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/PopoverRootView.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/ProjectsTab.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ProjectsTab.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ProjectsTab.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/ProjectsTab.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/Shared/PeriodPicker.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/PeriodPicker.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/PeriodPicker.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/PeriodPicker.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/Shared/StatCard.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/StatCard.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/StatCard.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/StatCard.o"
+  },
+  "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/UsageChartsTab.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/UsageChartsTab.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/UsageChartsTab.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/UsageChartsTab.o"
+  },
+  "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/alex/git/claude-mac-tray/build/Build/Intermediates.noindex/ClaudeTry.build/Release/ClaudeTry.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

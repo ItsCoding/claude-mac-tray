@@ -1,0 +1,144 @@
+{
+  "source": "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/UsageChartsTab.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Tokens by Model",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 16
+        }
+      },
+      {
+        "comment": "",
+        "key": "No data",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 18
+        }
+      },
+      {
+        "comment": "",
+        "key": "Day",
+        "location": {
+          "startingColumn": 51,
+          "startingLine": 24
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tokens",
+        "location": {
+          "startingColumn": 51,
+          "startingLine": 25
+        }
+      },
+      {
+        "comment": "",
+        "key": "Model",
+        "location": {
+          "startingColumn": 65,
+          "startingLine": 27
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cost Over Time",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 37
+        }
+      },
+      {
+        "comment": "",
+        "key": "No cost data",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 40
+        }
+      },
+      {
+        "comment": "",
+        "key": "Day",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cost",
+        "location": {
+          "startingColumn": 89,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "Day",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 45
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cost",
+        "location": {
+          "startingColumn": 89,
+          "startingLine": 45
+        }
+      },
+      {
+        "comment": "",
+        "key": "Input vs Output Tokens",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 55
+        }
+      },
+      {
+        "comment": "",
+        "key": "No data",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 60
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tokens",
+        "location": {
+          "startingColumn": 54,
+          "startingLine": 63
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tokens",
+        "location": {
+          "startingColumn": 54,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Input\n%@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "",
+        "key": "Output\n%@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 71
+        }
+      }
+    ]
+  },
+  "version": 1
+}

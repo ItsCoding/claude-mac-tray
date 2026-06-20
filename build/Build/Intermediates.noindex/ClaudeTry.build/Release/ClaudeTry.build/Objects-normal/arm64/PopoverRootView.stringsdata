@@ -1,0 +1,32 @@
+{
+  "source": "/Users/alex/git/claude-mac-tray/ClaudeTry/ClaudeTry/Views/PopoverRootView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Overview",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 9
+        }
+      },
+      {
+        "comment": "",
+        "key": "Charts",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 11
+        }
+      },
+      {
+        "comment": "",
+        "key": "Projects",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 13
+        }
+      }
+    ]
+  },
+  "version": 1
+}
