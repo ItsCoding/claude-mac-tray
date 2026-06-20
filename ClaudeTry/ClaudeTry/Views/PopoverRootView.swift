@@ -16,7 +16,7 @@ struct PopoverRootView: View {
             MemoryTab()
                 .tabItem { Label("Memory", systemImage: "brain") }
         }
-        .frame(width: 560)
         .padding(12)
+        .frame(width: 560, height: 640)
     }
 }
