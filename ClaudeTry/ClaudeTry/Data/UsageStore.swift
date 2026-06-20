@@ -26,7 +26,7 @@ final class UsageStore {
     func startPolling() {
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { await self?.refreshAsync() }
+            Task { @MainActor in await self?.refreshAsync() }
         }
     }
 

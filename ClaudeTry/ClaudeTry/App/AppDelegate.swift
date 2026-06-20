@@ -1,10 +1,12 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
-    @MainActor private let store = UsageStore()
+    private var labelTask: Task<Void, Never>?
+    private let store = UsageStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -24,12 +26,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         store.startPolling()
 
-        Task { @MainActor in
-            while true {
+        labelTask = Task { @MainActor in
+            while !Task.isCancelled {
                 self.updateStatusLabel()
                 try? await Task.sleep(for: .seconds(30))
             }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        labelTask?.cancel()
     }
 
     @MainActor
