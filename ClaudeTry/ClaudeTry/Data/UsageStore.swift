@@ -13,7 +13,6 @@ struct DailyBucket: Identifiable {
 @MainActor
 final class UsageStore {
     var sessions: [Session] = []
-    var memoryEvents: [MemoryEvent] = []
     private var timer: Timer?
     private let parser = JSONLParser()
 
@@ -24,6 +23,12 @@ final class UsageStore {
     }
 
     func startPolling() {
+        // Upgrade pricing from the live LiteLLM table, then (re)scan so any
+        // price changes are reflected immediately.
+        Task { @MainActor in
+            await ModelPricing.refreshFromRemote()
+            await refreshAsync()
+        }
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refreshAsync() }
@@ -39,7 +44,17 @@ final class UsageStore {
             .appendingPathComponent(".claude/projects")
         let result = await parser.scan(rootURL: rootURL)
         sessions = result.sessions.sorted { $0.startTime > $1.startTime }
-        memoryEvents = result.memoryEvents
+    }
+
+    /// Cumulative cost over time for a single project — points are per-session
+    /// running totals, sorted chronologically, for a cost-growth line chart.
+    func cumulativeCost(for project: ProjectSummary) -> [(date: Date, cumulative: Double)] {
+        let ordered = project.sessions.sorted { $0.startTime < $1.startTime }
+        var running = 0.0
+        return ordered.map { session in
+            running += ModelPricing.cost(for: session) ?? 0
+            return (date: session.startTime, cumulative: running)
+        }
     }
 
     func filteredSessions(for period: TimePeriod) -> [Session] {

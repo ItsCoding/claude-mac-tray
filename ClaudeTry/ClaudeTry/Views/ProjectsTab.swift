@@ -18,6 +18,10 @@ struct ProjectsTab: View {
         }
     }
 
+    private var grandTotal: Double {
+        store.projects.reduce(0) { $0 + projectCost($1) }
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             Picker("Sort", selection: $sortBy) {
@@ -29,14 +33,28 @@ struct ProjectsTab: View {
             if sorted.isEmpty {
                 ContentUnavailableView("No projects found", systemImage: "folder").frame(maxHeight: .infinity)
             } else {
-                List(sorted) { project in
-                    ProjectRow(project: project, isExpanded: expandedProject == project.id)
+                List {
+                    ForEach(sorted) { project in
+                        ProjectRow(
+                            project: project,
+                            isExpanded: expandedProject == project.id,
+                            growth: store.cumulativeCost(for: project)
+                        )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 expandedProject = expandedProject == project.id ? nil : project.id
                             }
                         }
+                    }
+
+                    HStack {
+                        Text("Total").font(.caption.weight(.semibold))
+                        Spacer()
+                        Text(String(format: "$%.2f", grandTotal))
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                    }
+                    .foregroundStyle(.secondary)
                 }
                 .listStyle(.plain)
             }
@@ -45,20 +63,19 @@ struct ProjectsTab: View {
     }
 
     private func projectCost(_ p: ProjectSummary) -> Double {
-        p.sessions.compactMap { ModelPricing.cost(for: $0) }.reduce(0, +)
+        p.sessions.reduce(0) { $0 + (ModelPricing.cost(for: $1) ?? 0) }
     }
 }
 
 private struct ProjectRow: View {
     let project: ProjectSummary
     let isExpanded: Bool
+    let growth: [(date: Date, cumulative: Double)]
 
-    private var totalCost: Double { project.sessions.compactMap { ModelPricing.cost(for: $0) }.reduce(0, +) }
-    private var costString: String {
-        let hasMissing = project.sessions.contains { ModelPricing.cost(for: $0) == nil }
-        if hasMissing && totalCost == 0 { return "—" }
-        return String(format: "$%.2f", totalCost)
+    private var totalCost: Double {
+        project.sessions.reduce(0) { $0 + (ModelPricing.cost(for: $1) ?? 0) }
     }
+    private var costString: String { String(format: "$%.2f", totalCost) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -79,14 +96,24 @@ private struct ProjectRow: View {
 
             if isExpanded {
                 Divider()
-                let monthly = monthlyCostBuckets(project)
-                if monthly.count > 1 {
-                    Chart(monthly, id: \.date) { item in
-                        BarMark(x: .value("Month", item.date, unit: .month), y: .value("Cost", item.cost))
-                            .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Cost Growth").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    if growth.count > 1 {
+                        Chart(growth, id: \.date) { item in
+                            LineMark(x: .value("Date", item.date), y: .value("Cost", item.cumulative))
+                                .interpolationMethod(.monotone)
+                            AreaMark(x: .value("Date", item.date), y: .value("Cost", item.cumulative))
+                                .foregroundStyle(.blue.opacity(0.15))
+                                .interpolationMethod(.monotone)
+                        }
+                        .frame(height: 80)
+                        .chartYAxis { AxisMarks(format: .currency(code: "USD")) }
+                    } else {
+                        Text("Not enough history to chart growth")
+                            .font(.caption2).foregroundStyle(.tertiary)
                     }
-                    .frame(height: 60)
                 }
+
                 let breakdown = modelBreakdown(project)
                 if !breakdown.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
@@ -104,17 +131,6 @@ private struct ProjectRow: View {
             }
         }
         .padding(.vertical, 4)
-    }
-
-    private func monthlyCostBuckets(_ project: ProjectSummary) -> [(date: Date, cost: Double)] {
-        let cal = Calendar.current
-        var map: [Date: Double] = [:]
-        for session in project.sessions {
-            guard let cost = ModelPricing.cost(for: session) else { continue }
-            let month = cal.date(from: cal.dateComponents([.year, .month], from: session.startTime))!
-            map[month, default: 0] += cost
-        }
-        return map.map { (date: $0.key, cost: $0.value) }.sorted { $0.date < $1.date }
     }
 
     private func modelBreakdown(_ project: ProjectSummary) -> [(model: String, tokens: Int)] {
