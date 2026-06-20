@@ -54,7 +54,7 @@ struct Session: Identifiable {
     var totalCacheReadTokens: Int { messages.reduce(0) { $0 + $1.cacheReadTokens } }
     var totalCacheWriteTokens: Int { messages.reduce(0) { $0 + $1.cacheWriteTokens } }
 
-    var projectName: String { URL(fileURLWithPath: projectPath).lastPathComponent }
+    var projectName: String { (projectPath as NSString).lastPathComponent }
 
     var modelBreakdown: [String: TokenCount] {
         var result: [String: TokenCount] = [:]
@@ -78,7 +78,7 @@ struct Session: Identifiable {
     }
 
     var primaryModel: String? {
-        modelBreakdown.max(by: { $0.value.input < $1.value.input })?.key
+        modelBreakdown.max(by: { ($0.value.input + $0.value.output) < ($1.value.input + $1.value.output) })?.key
     }
 }
 
@@ -87,7 +87,7 @@ struct ProjectSummary: Identifiable {
     let sessions: [Session]
 
     var id: String { path }
-    var name: String { URL(fileURLWithPath: path).lastPathComponent }
+    var name: String { (path as NSString).lastPathComponent }
     var lastActive: Date? { sessions.map(\.endTime).max() }
     var totalSessions: Int { sessions.count }
 
