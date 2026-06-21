@@ -38,7 +38,8 @@ struct ProjectsTab: View {
                         ProjectRow(
                             project: project,
                             isExpanded: expandedProject == project.id,
-                            growth: store.cumulativeCost(for: project)
+                            buckets: store.modelBuckets(fromSessions: project.sessions),
+                            unit: store.bucketUnit(forSessions: project.sessions)
                         )
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -70,7 +71,8 @@ struct ProjectsTab: View {
 private struct ProjectRow: View {
     let project: ProjectSummary
     let isExpanded: Bool
-    let growth: [(date: Date, cumulative: Double)]
+    let buckets: [ModelBucket]
+    let unit: BucketUnit
 
     private var totalCost: Double {
         project.sessions.reduce(0) { $0 + (ModelPricing.cost(for: $1) ?? 0) }
@@ -97,20 +99,12 @@ private struct ProjectRow: View {
             if isExpanded {
                 Divider()
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Cost Growth").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    if growth.count > 1 {
-                        Chart(growth, id: \.date) { item in
-                            LineMark(x: .value("Date", item.date), y: .value("Cost", item.cumulative))
-                                .interpolationMethod(.monotone)
-                            AreaMark(x: .value("Date", item.date), y: .value("Cost", item.cumulative))
-                                .foregroundStyle(.blue.opacity(0.15))
-                                .interpolationMethod(.monotone)
-                        }
-                        .frame(height: 80)
-                        .chartYAxis { AxisMarks(format: .currency(code: "USD")) }
-                    } else {
-                        Text("Not enough history to chart growth")
+                    Text("Cost by \(unit.label.lowercased())").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    if buckets.isEmpty {
+                        Text("No cost data for this project")
                             .font(.caption2).foregroundStyle(.tertiary)
+                    } else {
+                        BucketBarChart(buckets: buckets, unit: unit, metric: .cost, height: 120)
                     }
                 }
 

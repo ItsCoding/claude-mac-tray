@@ -3,98 +3,180 @@ import Charts
 
 struct UsageChartsTab: View {
     @Environment(UsageStore.self) private var store
-    @State private var period: TimePeriod = .thisWeek
+    @State private var range = RangeState(mode: .week)
+    @State private var selectedDate: Date?
 
-    private var buckets: [DailyBucket] { store.dailyTokenBuckets(for: period) }
+    private var interval: DateInterval { range.interval }
+    private var buckets: [ModelBucket] { store.modelBuckets(in: interval) }
+    private var unit: BucketUnit { store.bucketUnit(in: interval) }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                PeriodPicker(selection: $period)
+            VStack(alignment: .leading, spacing: 22) {
+                RangePicker(range: $range)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Tokens by Model").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                section("Tokens by model") {
                     if buckets.isEmpty {
-                        ContentUnavailableView("No data", systemImage: "chart.bar").frame(height: 150)
+                        empty("chart.bar")
                     } else {
-                        Chart {
-                            ForEach(buckets) { bucket in
-                                ForEach(bucket.modelTokens.sorted(by: { $0.key < $1.key }), id: \.key) { model, tokens in
-                                    BarMark(
-                                        x: .value("Day", bucket.date, unit: .day),
-                                        y: .value("Tokens", tokens)
-                                    )
-                                    .foregroundStyle(by: .value("Model", shortModelName(model)))
-                                }
-                            }
-                        }
-                        .frame(height: 150)
-                        .chartLegend(position: .bottom)
+                        BucketBarChart(buckets: buckets, unit: unit, metric: .tokens, height: 180)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Cost Over Time").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    let costBuckets = costByDay()
-                    if costBuckets.isEmpty {
-                        ContentUnavailableView("No cost data", systemImage: "dollarsign.circle").frame(height: 120)
-                    } else {
-                        Chart(costBuckets, id: \.date) { item in
-                            LineMark(x: .value("Day", item.date, unit: .day), y: .value("Cost", item.cost))
-                                .interpolationMethod(.catmullRom)
-                            AreaMark(x: .value("Day", item.date, unit: .day), y: .value("Cost", item.cost))
-                                .foregroundStyle(.blue.opacity(0.15))
-                                .interpolationMethod(.catmullRom)
-                        }
-                        .frame(height: 120)
-                        .chartYAxis { AxisMarks(format: .currency(code: "USD")) }
-                    }
+                section("Cumulative cost") {
+                    cumulativeChart
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Input vs Output Tokens").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    let sessions = store.filteredSessions(for: period)
-                    let totalIn = sessions.reduce(0) { $0 + $1.totalInputTokens }
-                    let totalOut = sessions.reduce(0) { $0 + $1.totalOutputTokens }
-                    if totalIn + totalOut == 0 {
-                        ContentUnavailableView("No data", systemImage: "chart.pie").frame(height: 80)
-                    } else {
-                        Chart {
-                            SectorMark(angle: .value("Tokens", totalIn))
-                                .foregroundStyle(.blue)
-                                .annotation(position: .overlay) {
-                                    Text("Input\n\(totalIn.formatted())").font(.caption2).multilineTextAlignment(.center)
-                                }
-                            SectorMark(angle: .value("Tokens", totalOut))
-                                .foregroundStyle(.green)
-                                .annotation(position: .overlay) {
-                                    Text("Output\n\(totalOut.formatted())").font(.caption2).multilineTextAlignment(.center)
-                                }
-                        }
-                        .frame(height: 120)
-                    }
+                section("Token composition") {
+                    compositionChart
+                }
+
+                section("Insights") {
+                    insights
+                }
+
+                section("Top tools") {
+                    topTools
                 }
             }
             .padding()
         }
     }
 
-    private func shortModelName(_ model: String) -> String {
-        if model.contains("opus") { return "Opus" }
-        if model.contains("sonnet") { return "Sonnet" }
-        if model.contains("haiku") { return "Haiku" }
-        if model.contains("fable") { return "Fable" }
-        return model
+    @ViewBuilder private var cumulativeChart: some View {
+        let growth = store.cumulativeCost(in: interval)
+        if growth.count < 2 {
+            empty("dollarsign.circle")
+        } else {
+            let total = growth.last?.cumulative ?? 0
+            Chart {
+                ForEach(growth, id: \.date) { item in
+                    LineMark(x: .value("Date", item.date), y: .value("Cost", item.cumulative))
+                        .interpolationMethod(.monotone)
+                        .foregroundStyle(.indigo)
+                    AreaMark(x: .value("Date", item.date), y: .value("Cost", item.cumulative))
+                        .interpolationMethod(.monotone)
+                        .foregroundStyle(.linearGradient(colors: [.indigo.opacity(0.25), .indigo.opacity(0.02)],
+                                                         startPoint: .top, endPoint: .bottom))
+                }
+                if let selectedDate, let point = nearestPoint(growth, to: selectedDate) {
+                    RuleMark(x: .value("Date", point.date))
+                        .foregroundStyle(Color.secondary.opacity(0.25))
+                        .annotation(position: .top, spacing: 6,
+                                    overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(point.date.formatted(.dateTime.day().month(.abbreviated)))
+                                    .font(.caption2).foregroundStyle(.secondary)
+                                Text(String(format: "$%.2f", point.cumulative))
+                                    .font(.caption.monospacedDigit().weight(.semibold))
+                            }
+                            .padding(8)
+                            .glassCard(cornerRadius: 10)
+                        }
+                }
+            }
+            .chartYAxis { AxisMarks(format: .currency(code: "USD").precision(.fractionLength(0))) }
+            .frame(height: 150)
+            .overlay(alignment: .topTrailing) {
+                Text(String(format: "Total %.2f USD", total))
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    Rectangle().fill(.clear).contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let pt):
+                                guard let plot = proxy.plotFrame else { return }
+                                if let date = proxy.value(atX: pt.x - geo[plot].minX, as: Date.self) {
+                                    selectedDate = date
+                                }
+                            case .ended: selectedDate = nil
+                            }
+                        }
+                }
+            }
+        }
     }
 
-    private func costByDay() -> [(date: Date, cost: Double)] {
-        let cal = Calendar.current
-        var map: [Date: Double] = [:]
-        for session in store.filteredSessions(for: period) {
-            guard let cost = ModelPricing.cost(for: session) else { continue }
-            let day = cal.startOfDay(for: session.startTime)
-            map[day, default: 0] += cost
+    @ViewBuilder private var compositionChart: some View {
+        let t = store.tokenTotals(in: interval)
+        let parts: [(String, Int, Color)] = [
+            ("Input", t.input, .blue), ("Output", t.output, .green),
+            ("Cache read", t.cacheRead, .teal), ("Cache write", t.cacheWrite, .orange),
+        ].filter { $0.1 > 0 }
+        let total = parts.reduce(0) { $0 + $1.1 }
+        if parts.isEmpty {
+            empty("chart.pie")
+        } else {
+            Chart(parts, id: \.0) { part in
+                SectorMark(angle: .value("Tokens", part.1), innerRadius: .ratio(0.62), angularInset: 1.5)
+                    .foregroundStyle(by: .value("Kind", part.0))
+                    .cornerRadius(4)
+            }
+            .chartForegroundStyleScale(domain: parts.map(\.0), range: parts.map(\.2))
+            .chartBackground { _ in
+                VStack(spacing: 0) {
+                    Text(total.abbrev).font(.title3.weight(.semibold).monospacedDigit())
+                    Text("tokens").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            .chartLegend(position: .bottom, spacing: 10)
+            .frame(height: 200)
         }
-        return map.map { (date: $0.key, cost: $0.value) }.sorted { $0.date < $1.date }
+    }
+
+    @ViewBuilder private var insights: some View {
+        let saved = store.cacheSavings(in: interval)
+        let busiest = store.busiestHour(in: interval)
+        let avg = store.avgSessionMinutes(in: interval)
+        HStack(spacing: 8) {
+            InsightTile(icon: "bolt.fill", tint: .green, title: "Cache saved",
+                        value: String(format: "$%.0f", saved))
+            InsightTile(icon: "clock.fill", tint: .teal, title: "Peak hour",
+                        value: busiest.map { String(format: "%02d:00", $0.hour) } ?? "—")
+            InsightTile(icon: "timer", tint: .orange, title: "Avg session",
+                        value: avg.map { $0 >= 1 ? "\(Int($0))m" : "<1m" } ?? "—")
+        }
+    }
+
+    @ViewBuilder private var topTools: some View {
+        let tools = store.topToolCalls(in: interval)
+        if tools.isEmpty {
+            empty("wrench.and.screwdriver")
+        } else {
+            let maxCount = tools.first?.count ?? 1
+            VStack(spacing: 4) {
+                ForEach(tools.prefix(6), id: \.name) { tool in
+                    HStack(spacing: 8) {
+                        Text(tool.name).font(.caption).frame(width: 80, alignment: .leading)
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(.indigo.gradient)
+                                .frame(width: max(4, geo.size.width * CGFloat(tool.count) / CGFloat(maxCount)))
+                        }
+                        .frame(height: 12)
+                        Text("\(tool.count)").font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary).frame(width: 44, alignment: .trailing)
+                    }
+                }
+            }
+        }
+    }
+
+    private func nearestPoint(_ points: [(date: Date, cumulative: Double)], to date: Date) -> (date: Date, cumulative: Double)? {
+        points.min { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) }
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.subheadline.weight(.semibold))
+            content()
+        }
+    }
+
+    private func empty(_ symbol: String) -> some View {
+        ContentUnavailableView("No data", systemImage: symbol).frame(height: 120)
     }
 }

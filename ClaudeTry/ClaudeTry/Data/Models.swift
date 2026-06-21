@@ -9,6 +9,92 @@ enum TimePeriod: String, CaseIterable {
     case allTime = "All Time"
 }
 
+/// Segmented options for the range picker. The first four are presets; `.custom`
+/// reveals two date pickers that drive `RangeState.customStart`/`customEnd`.
+enum RangeMode: String, CaseIterable, Hashable {
+    case today = "Today"
+    case week = "Week"
+    case month = "Month"
+    case all = "All"
+    case custom = "Custom"
+}
+
+/// The selected reporting window. Held as one `@State` per tab; resolves to a
+/// `DateInterval` that every store query keys off of, so presets and arbitrary
+/// custom ranges share a single code path.
+struct RangeState: Equatable {
+    var mode: RangeMode
+    var customStart: Date
+    var customEnd: Date
+
+    init(mode: RangeMode = .today) {
+        let cal = Calendar.current
+        self.mode = mode
+        self.customEnd = Date()
+        self.customStart = cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: Date())) ?? Date()
+    }
+
+    var interval: DateInterval {
+        let cal = Calendar.current
+        let now = Date()
+        let end = now.addingTimeInterval(60) // include the just-now edge
+        switch mode {
+        case .today:  return DateInterval(start: cal.startOfDay(for: now), end: end)
+        case .week:   return DateInterval(start: cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: now))!, end: end)
+        case .month:  return DateInterval(start: cal.date(byAdding: .month, value: -1, to: cal.startOfDay(for: now))!, end: end)
+        case .all:    return DateInterval(start: .distantPast, end: end)
+        case .custom:
+            let s = cal.startOfDay(for: customStart)
+            let e = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: customEnd)) ?? customEnd // inclusive end day
+            return DateInterval(start: s, end: max(e, s.addingTimeInterval(1)))
+        }
+    }
+}
+
+/// Chart bucket granularity, chosen from how wide the data actually spans (not
+/// the nominal range) so "Today" buckets hourly and "All Time" buckets weekly.
+enum BucketUnit {
+    case hour, day, week
+
+    var calendarComponent: Calendar.Component {
+        switch self {
+        case .hour: return .hour
+        case .day:  return .day
+        case .week: return .weekOfYear
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .hour: return "Hour"
+        case .day:  return "Day"
+        case .week: return "Week"
+        }
+    }
+}
+
+/// Friendly model name for legends. Collapses dated/undated ids to one family.
+func shortModelName(_ model: String) -> String {
+    if model == "<synthetic>" || model.isEmpty { return "Synthetic" }
+    if model.contains("opus")   { return "Opus" }
+    if model.contains("sonnet") { return "Sonnet" }
+    if model.contains("haiku")  { return "Haiku" }
+    if model.contains("fable")  { return "Fable" }
+    return model
+}
+
+extension Int {
+    /// Compact form for stat cards / axes: 1_500 -> "1.5K", 2_700_000 -> "2.7M".
+    var abbrev: String {
+        let n = Double(self)
+        switch abs(n) {
+        case 1_000_000...: return String(format: "%.1fM", n / 1_000_000)
+        case 1_000...:     return String(format: "%.1fK", n / 1_000)
+        default:           return "\(self)"
+        }
+    }
+}
+
 struct ToolCall: Hashable {
     let name: String
     let arguments: [String: String]
