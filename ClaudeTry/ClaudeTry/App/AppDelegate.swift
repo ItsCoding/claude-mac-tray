@@ -18,12 +18,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 560, height: 640)
+        popover.contentSize = NSSize(width: 460, height: 480)
         popover.behavior = .transient
-        // PopoverRootView is wired in Task 6; placeholder until then
-        popover.contentViewController = NSHostingController(
-            rootView: PopoverRootView().environment(store)
-        )
+        // Resize explicitly from the SwiftUI content's measured height. Setting
+        // contentSize keeps the popover anchored to the status item (the arrow
+        // stays put and it grows downward); `.preferredContentSize` auto-sizing
+        // detaches it and makes it jump on expand/collapse.
+        let root = PopoverRootView(onHeight: { [weak self] height in
+            self?.popover.contentSize = NSSize(width: 460, height: height)
+        }).environment(store)
+        popover.contentViewController = NSHostingController(rootView: root)
 
         store.startPolling()
 

@@ -79,20 +79,27 @@ final class UsageStore {
         sessions.filter { interval.contains($0.startTime) }
     }
 
+    /// Every message whose own timestamp falls in `interval`, regardless of when
+    /// its session started. Totals key off this (not whole-session filtering by
+    /// start time) so a session spanning midnight attributes each message's cost
+    /// to the day it was actually spent — matching the per-message charts.
+    func messages(in interval: DateInterval) -> [ClaudeMessage] {
+        sessions.flatMap(\.messages).filter { interval.contains($0.timestamp) }
+    }
+
     func tokenTotals(in interval: DateInterval) -> TokenCount {
-        filteredSessions(in: interval).reduce(.zero) { acc, s in
-            acc + TokenCount(input: s.totalInputTokens, output: s.totalOutputTokens,
-                             cacheRead: s.totalCacheReadTokens, cacheWrite: s.totalCacheWriteTokens)
+        messages(in: interval).reduce(.zero) { acc, m in
+            acc + TokenCount(input: m.inputTokens, output: m.outputTokens,
+                             cacheRead: m.cacheReadTokens, cacheWrite: m.cacheWriteTokens)
         }
     }
 
     func totalCost(in interval: DateInterval) -> Double? {
-        var total = 0.0
-        for session in filteredSessions(in: interval) {
-            guard let cost = ModelPricing.cost(for: session) else { return nil }
-            total += cost
+        messages(in: interval).reduce(0.0) { acc, m in
+            let tc = TokenCount(input: m.inputTokens, output: m.outputTokens,
+                                cacheRead: m.cacheReadTokens, cacheWrite: m.cacheWriteTokens)
+            return acc + (ModelPricing.cost(for: m.model ?? "", tokens: tc) ?? 0)
         }
-        return total
     }
 
     /// Granularity for charts over this range, picked from the actual data span.
@@ -211,12 +218,10 @@ final class UsageStore {
     }
 
     func totalCost(for period: TimePeriod) -> Double? {
-        var total = 0.0
-        for session in filteredSessions(for: period) {
-            guard let cost = ModelPricing.cost(for: session) else { return nil }
-            total += cost
-        }
-        return total
+        // Attribute by message timestamp (same as `totalCost(in:)`) so the
+        // menu-bar "today" total matches the Overview card and charts.
+        totalCost(in: DateInterval(start: startDate(for: period),
+                                   end: Date().addingTimeInterval(60)))
     }
 
     func dailyTokenBuckets(for period: TimePeriod) -> [DailyBucket] {
