@@ -10,6 +10,9 @@ struct UsageSnapshot {
     let sessionID: String
     /// When the wrapper wrote this snapshot (the file's modification date).
     let writtenAt: Date
+    /// Claude Code's own session cost estimate (from `total_cost_usd` payload field).
+    /// Captured for completeness, but Bedrock bars compute cost from the JSONL via
+    /// totalCost(in:) — totalCost is authoritative.
     let costUSD: Double?
     let apiDurationMs: Int?
     let wallDurationMs: Int?

@@ -43,6 +43,7 @@ final class StatuslineInstaller {
     /// (atomic temp + rename), then chains to `previous` if given, else prints a
     /// minimal `[model]` line so the statusline is never blank.
     func scriptContents(chainingTo previous: String?) -> String {
+        // POSIX single-quote escape: close quote, escaped literal quote, reopen quote
         let prior = (previous ?? "").replacingOccurrences(of: "'", with: "'\\''")
         return """
         #!/bin/sh
@@ -50,6 +51,7 @@ final class StatuslineInstaller {
         SNAP_DIR='\(snapshotDir.path)'
         mkdir -p "$SNAP_DIR"
         input=$(cat)
+        # Extract session_id only; payload is written verbatim (UsageSnapshot.decode remains the single source of truth)
         sid=$(printf '%s' "$input" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
         [ -z "$sid" ] && sid="unknown"
         tmp="$SNAP_DIR/.$sid.tmp"

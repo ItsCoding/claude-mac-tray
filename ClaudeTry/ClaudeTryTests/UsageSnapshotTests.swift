@@ -19,6 +19,7 @@ final class UsageSnapshotTests: XCTestCase {
         XCTAssertEqual(snap.fiveHour?.usedPercentage, 23.5)
         XCTAssertEqual(snap.fiveHour?.resetsAt, Date(timeIntervalSince1970: 1738425600))
         XCTAssertEqual(snap.sevenDay?.usedPercentage, 41.2)
+        XCTAssertEqual(snap.sevenDay?.resetsAt, Date(timeIntervalSince1970: 1738857600))
     }
 
     func test_decode_bedrockPayloadHasNoRateLimits() throws {

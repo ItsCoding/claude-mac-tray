@@ -58,14 +58,21 @@ struct LimitsModel: Equatable {
             )
         }
         if budgetUSD > 0 {
+            let budgetStr = formatBudget(budgetUSD)
             return BarState(
                 fraction: min(1, max(0, costUSD / budgetUSD)),
-                primaryLabel: String(format: "$%.2f / $%g", costUSD, budgetUSD),
+                primaryLabel: String(format: "$%.2f / %@", costUSD, budgetStr),
                 detailLabel: fallbackDetail,
                 isReal: false
             )
         }
         return BarState(fraction: 0, primaryLabel: String(format: "$%.2f", costUSD),
                         detailLabel: fallbackDetail, isReal: false)
+    }
+
+    private static func formatBudget(_ budgetUSD: Double) -> String {
+        budgetUSD == budgetUSD.rounded()
+            ? String(format: "$%.0f", budgetUSD)
+            : String(format: "$%.2f", budgetUSD)
     }
 }
