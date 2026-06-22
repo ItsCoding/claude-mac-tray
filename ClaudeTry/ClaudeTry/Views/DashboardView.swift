@@ -15,12 +15,13 @@ struct DashboardView: View {
     @State private var showingSettings = false
     private let installer = StatuslineInstaller.standard()
 
-    private enum Activity: String, CaseIterable { case cost = "Cost", tokens = "Tokens" }
+    private enum Activity: String, CaseIterable { case cost = "Cost", tokens = "Tokens", profile = "Profile" }
 
     private var interval: DateInterval { range.interval }
     private var filtered: [Session] { store.filteredSessions(in: interval) }
     private var totals: TokenCount { store.tokenTotals(in: interval) }
     private var buckets: [ModelBucket] { store.modelBuckets(in: interval) }
+    private var profileBuckets: [ModelBucket] { store.profileBuckets(in: interval) }
     private var unit: BucketUnit { store.bucketUnit(in: interval) }
 
     var body: some View {
@@ -31,9 +32,11 @@ struct DashboardView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         heroCard(compact: false)
-                        LimitsSection(limits: store.limits, compact: false,
-                                      showConnectPrompt: !installer.isInstalled,
-                                      onConnect: { showingSettings = true })
+                        TimelineView(.periodic(from: .now, by: 30)) { _ in
+                                    LimitsSection(limits: store.limits, compact: false,
+                                                  showConnectPrompt: !installer.isInstalled,
+                                                  onConnect: { showingSettings = true })
+                                }
                         if buckets.isEmpty {
                             ContentUnavailableView("No usage in this range", systemImage: "chart.bar")
                                 .frame(height: 260)
@@ -55,12 +58,14 @@ struct DashboardView: View {
             } else {
                 VStack(alignment: .leading, spacing: 14) {
                     heroCard(compact: true)
-                    LimitsSection(limits: store.limits, compact: true,
-                                  showConnectPrompt: !installer.isInstalled,
-                                  onConnect: { showingSettings = true })
+                    TimelineView(.periodic(from: .now, by: 30)) { _ in
+                        LimitsSection(limits: store.limits, compact: true,
+                                      showConnectPrompt: !installer.isInstalled,
+                                      onConnect: { showingSettings = true })
+                    }
                     if buckets.isEmpty {
                         ContentUnavailableView("No usage today", systemImage: "chart.bar")
-                            .frame(height: 200)
+                            .frame(height: 150)
                     } else {
                         activitySection
                     }
@@ -128,27 +133,45 @@ struct DashboardView: View {
     }
 
     private func heroCard(compact: Bool) -> some View {
-        VStack(alignment: .leading, spacing: compact ? 8 : 14) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Total cost · \(range.mode.rawValue)")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text(costString)
-                    .font(.system(size: compact ? 27 : 38, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                if let avgCostSubtitle {
-                    Text(avgCostSubtitle).font(.caption2).foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: compact ? 8 : 12) {
+            Text("Total cost · \(range.mode.rawValue)")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(costString)
+                        .font(.system(size: compact ? 27 : 38, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                    if let avgCostSubtitle {
+                        Text(avgCostSubtitle).font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 3) {
+                    HStack(spacing: 4) {
+                        Text((totals.input + totals.output).abbrev)
+                            .font((compact ? Font.caption2 : .caption).weight(.semibold).monospacedDigit())
+                        Text("tokens").font(compact ? Font.caption2 : .caption).foregroundStyle(.secondary)
+                    }
+                    if totals.cacheRead > 0 {
+                        Text("+\(totals.cacheRead.abbrev) cached")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    HStack(spacing: 4) {
+                        Text("\(filtered.count)")
+                            .font((compact ? Font.caption2 : .caption).weight(.semibold).monospacedDigit())
+                        Text("sessions").font(compact ? Font.caption2 : .caption).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 4) {
+                        Text("\(Set(filtered.map(\.projectPath)).count)")
+                            .font((compact ? Font.caption2 : .caption).weight(.semibold).monospacedDigit())
+                        Text("projects").font(compact ? Font.caption2 : .caption).foregroundStyle(.secondary)
+                    }
                 }
             }
-            Divider()
-            HStack(spacing: 0) {
-                heroMetric("Tokens", (totals.input + totals.output).abbrev,
-                           sub: totals.cacheRead > 0 ? "+\(totals.cacheRead.abbrev) cached" : nil,
-                           compact: compact)
-                heroDivider
-                heroMetric("Sessions", "\(filtered.count)", compact: compact)
-                heroDivider
-                heroMetric("Projects", "\(Set(filtered.map(\.projectPath)).count)", compact: compact)
+            if let breakdown = store.profileBreakdown(in: interval) {
+                Divider()
+                profileRow(breakdown)
             }
         }
         .padding(compact ? 13 : 16)
@@ -156,17 +179,25 @@ struct DashboardView: View {
         .glassCard(cornerRadius: compact ? 16 : 18)
     }
 
-    private func heroMetric(_ title: String, _ value: String, sub: String? = nil, compact: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(value).font((compact ? Font.body : .title3).weight(.semibold).monospacedDigit())
-            Text(title).font(.caption2).foregroundStyle(.secondary)
-            if let sub { Text(sub).font(.caption2).foregroundStyle(.tertiary) }
+    private func profileRow(_ breakdown: [(profile: ClaudeProfile, cost: Double, sessions: Int)]) -> some View {
+        HStack(spacing: 14) {
+            ForEach(breakdown, id: \.profile.rawValue) { item in
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(item.profile == .anthropic ? Color.indigo : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text(item.profile.rawValue)
+                        .font(.caption2).foregroundStyle(.secondary)
+                    Text(String(format: "$%.2f", item.cost))
+                        .font(.caption2.monospacedDigit().weight(.medium))
+                    Text("·")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                    Text("\(item.sessions) sessions")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var heroDivider: some View {
-        Rectangle().fill(.secondary.opacity(0.15)).frame(width: 1, height: 24)
     }
 
     // MARK: Sections
@@ -178,11 +209,14 @@ struct DashboardView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 140)
+            .frame(width: 180)
             .controlSize(.small)
         } content: {
-            BucketBarChart(buckets: buckets, unit: unit,
-                           metric: activity == .cost ? .cost : .tokens, height: 200)
+            switch activity {
+            case .cost:    BucketBarChart(buckets: buckets, unit: unit, metric: .cost, height: 150)
+            case .tokens:  BucketBarChart(buckets: buckets, unit: unit, metric: .tokens, height: 150)
+            case .profile: BucketBarChart(buckets: profileBuckets, unit: unit, metric: .cost, height: 150)
+            }
         }
     }
 

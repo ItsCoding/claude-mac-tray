@@ -6,10 +6,10 @@ final class ModelTests: XCTestCase {
         let messages = [
             ClaudeMessage(timestamp: Date(), role: "assistant", model: "claude-sonnet-4-6",
                           inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0,
-                          toolCalls: [], projectPath: "/test/project"),
+                          toolCalls: [], projectPath: "/test/project", isBedrock: false),
             ClaudeMessage(timestamp: Date(), role: "assistant", model: "claude-sonnet-4-6",
                           inputTokens: 200, outputTokens: 80, cacheReadTokens: 10, cacheWriteTokens: 5,
-                          toolCalls: [], projectPath: "/test/project")
+                          toolCalls: [], projectPath: "/test/project", isBedrock: false)
         ]
         let session = Session(id: UUID(), projectPath: "/test/project",
                               startTime: messages[0].timestamp, endTime: messages[1].timestamp,
@@ -22,10 +22,10 @@ final class ModelTests: XCTestCase {
         let messages = [
             ClaudeMessage(timestamp: Date(), role: "assistant", model: "claude-sonnet-4-6",
                           inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0,
-                          toolCalls: [], projectPath: "/test"),
+                          toolCalls: [], projectPath: "/test", isBedrock: false),
             ClaudeMessage(timestamp: Date(), role: "assistant", model: "claude-opus-4-8",
                           inputTokens: 200, outputTokens: 80, cacheReadTokens: 0, cacheWriteTokens: 0,
-                          toolCalls: [], projectPath: "/test")
+                          toolCalls: [], projectPath: "/test", isBedrock: false)
         ]
         let session = Session(id: UUID(), projectPath: "/test",
                               startTime: messages[0].timestamp, endTime: messages[1].timestamp,

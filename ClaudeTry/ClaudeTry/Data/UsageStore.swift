@@ -126,9 +126,28 @@ final class UsageStore {
         }
     }
 
-    /// Granularity for charts over this range, picked from the actual data span.
+    /// Per-profile cost and session count for the interval. Returns nil when all
+    /// sessions belong to a single profile (no breakdown to show).
+    func profileBreakdown(in interval: DateInterval) -> [(profile: ClaudeProfile, cost: Double, sessions: Int)]? {
+        var data: [ClaudeProfile: (cost: Double, sessions: Int)] = [:]
+        for session in filteredSessions(in: interval) {
+            let p = session.profile
+            let c = ModelPricing.cost(for: session) ?? 0
+            data[p] = (data[p].map { ($0.cost + c, $0.sessions + 1) }) ?? (c, 1)
+        }
+        guard data.count > 1 else { return nil }
+        return data
+            .map { (profile: $0.key, cost: $0.value.cost, sessions: $0.value.sessions) }
+            .sorted { $0.profile == .anthropic && $1.profile != .anthropic }
+    }
+
+    /// Granularity for charts over this range, driven by interval duration so
+    /// "Today" always buckets hourly and "Week" always buckets daily.
     func bucketUnit(in interval: DateInterval) -> BucketUnit {
-        bucketUnit(forSessions: filteredSessions(in: interval))
+        let days = interval.duration / 86_400
+        if days <= 1.5 { return .hour }
+        if days <= 92  { return .day }
+        return .week
     }
 
     func bucketUnit(forSessions sessions: [Session]) -> BucketUnit {
@@ -140,18 +159,19 @@ final class UsageStore {
         return .week
     }
 
-    /// Per-bucket, per-model tokens and cost over a range. Buckets adapt to the
-    /// data span; models are collapsed to display families (Opus/Sonnet/…).
+    /// Per-bucket, per-model tokens and cost over a range.
     func modelBuckets(in interval: DateInterval) -> [ModelBucket] {
-        modelBuckets(fromSessions: filteredSessions(in: interval))
+        _modelBuckets(sessions: filteredSessions(in: interval), unit: bucketUnit(in: interval))
     }
 
     func modelBuckets(fromSessions sessions: [Session]) -> [ModelBucket] {
-        let unit = bucketUnit(forSessions: sessions)
-        let cal = Calendar.current
+        _modelBuckets(sessions: sessions, unit: bucketUnit(forSessions: sessions))
+    }
 
-        var tokens: [Date: [String: (Int, Int)]] = [:] // bucket -> short model -> (in, out)
-        var cost:   [Date: [String: Double]] = [:]      // bucket -> short model -> usd
+    private func _modelBuckets(sessions: [Session], unit: BucketUnit) -> [ModelBucket] {
+        let cal = Calendar.current
+        var tokens: [Date: [String: (Int, Int)]] = [:]
+        var cost:   [Date: [String: Double]] = [:]
         for session in sessions {
             for msg in session.messages {
                 guard let raw = msg.model else { continue }
@@ -164,19 +184,54 @@ final class UsageStore {
                 io.0 += tc.input; io.1 += tc.output
                 byModel[short] = io
                 tokens[bucket] = byModel
-
                 var byCost = cost[bucket] ?? [:]
                 byCost[short, default: 0] += ModelPricing.cost(for: raw, tokens: tc) ?? 0
                 cost[bucket] = byCost
             }
         }
-
         return tokens.flatMap { date, models in
             models.map { short, io in
                 ModelBucket(date: date, model: short, inputTokens: io.0, outputTokens: io.1,
                             cost: cost[date]?[short] ?? 0)
             }
-        }.sorted { $0.date < $1.date }
+        }.sorted {
+            if $0.date != $1.date { return $0.date < $1.date }
+            let order = ModelStyle.order
+            let i0 = order.firstIndex(of: $0.model) ?? order.count
+            let i1 = order.firstIndex(of: $1.model) ?? order.count
+            return i0 < i1
+        }
+    }
+
+    /// Per-bucket, per-profile cost over a range (uses the same ModelBucket shape
+    /// so BucketBarChart can render it unchanged with profile names as "model").
+    func profileBuckets(in interval: DateInterval) -> [ModelBucket] {
+        let unit = bucketUnit(in: interval)
+        let cal = Calendar.current
+        var tokens: [Date: [String: (Int, Int)]] = [:]
+        var cost:   [Date: [String: Double]] = [:]
+        for session in filteredSessions(in: interval) {
+            let name = session.profile.rawValue
+            for msg in session.messages {
+                let bucket = truncate(msg.timestamp, to: unit, cal: cal)
+                let tc = TokenCount(input: msg.inputTokens, output: msg.outputTokens,
+                                    cacheRead: msg.cacheReadTokens, cacheWrite: msg.cacheWriteTokens)
+                var byProfile = tokens[bucket] ?? [:]
+                var io = byProfile[name] ?? (0, 0)
+                io.0 += tc.input; io.1 += tc.output
+                byProfile[name] = io
+                tokens[bucket] = byProfile
+                var byCost = cost[bucket] ?? [:]
+                byCost[name, default: 0] += ModelPricing.cost(for: msg.model ?? "", tokens: tc) ?? 0
+                cost[bucket] = byCost
+            }
+        }
+        return tokens.flatMap { date, profiles in
+            profiles.map { name, io in
+                ModelBucket(date: date, model: name, inputTokens: io.0, outputTokens: io.1,
+                            cost: cost[date]?[name] ?? 0)
+            }
+        }.sorted { $0.date != $1.date ? $0.date < $1.date : $0.model < $1.model }
     }
 
     /// Running USD total across the range, one point per session, for an

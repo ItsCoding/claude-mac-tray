@@ -50,6 +50,11 @@ struct LimitsModel: Equatable {
     private static func bar(window: RateWindow?, costUSD: Double, budgetUSD: Double,
                             fallbackDetail: String, now: Date) -> BarState {
         if let window {
+            if now >= window.resetsAt {
+                return BarState(fraction: 0, primaryLabel: "0%",
+                                detailLabel: TimeFormat.resetCountdown(to: window.resetsAt, from: now),
+                                isReal: true)
+            }
             return BarState(
                 fraction: min(1, max(0, window.usedPercentage / 100)),
                 primaryLabel: "\(Int(window.usedPercentage.rounded()))%",

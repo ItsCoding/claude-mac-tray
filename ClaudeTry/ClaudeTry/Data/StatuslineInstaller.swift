@@ -31,12 +31,18 @@ final class StatuslineInstaller {
         )
     }
 
-    /// True when settings.json's statusLine command already points at our script.
+    /// True when settings.json's statusLine command points at our script directly,
+    /// or when the configured command is a wrapper that calls our script.
     var isInstalled: Bool {
         guard let dict = readSettings(),
               let sl = dict["statusLine"] as? [String: Any],
               let cmd = sl["command"] as? String else { return false }
-        return cmd == scriptURL.path
+        if cmd == scriptURL.path { return true }
+        // Detect chain wrappers (e.g. claude-hud-with-tray.sh) that call our script
+        if let content = try? String(contentsOfFile: cmd, encoding: .utf8) {
+            return content.contains(scriptURL.path)
+        }
+        return false
     }
 
     /// The POSIX `sh` wrapper. Writes the payload to `<snapshotDir>/<session_id>.json`

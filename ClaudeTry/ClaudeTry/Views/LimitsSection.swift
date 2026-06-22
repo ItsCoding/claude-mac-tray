@@ -10,18 +10,21 @@ struct LimitsSection: View {
     var onConnect: () -> Void = {}
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+        VStack(alignment: .leading, spacing: 6) {
             if showConnectPrompt {
                 connectPrompt
             } else {
-                LimitBar(title: "Session · 5h", bar: limits.session)
-                LimitBar(title: "Weekly · 7d", bar: limits.weekly)
+                HStack(alignment: .top, spacing: 12) {
+                    LimitBar(title: "Session · 5h", bar: limits.session)
+                    Divider().frame(height: 40)
+                    LimitBar(title: "Weekly · 7d", bar: limits.weekly)
+                }
                 timingLine
             }
         }
-        .padding(compact ? 12 : 14)
+        .padding(compact ? 10 : 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: compact ? 14 : 16)
+        .glassCard(cornerRadius: compact ? 12 : 14)
     }
 
     private var timingLine: some View {

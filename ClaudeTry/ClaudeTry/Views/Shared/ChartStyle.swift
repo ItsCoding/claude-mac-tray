@@ -3,8 +3,8 @@ import SwiftUI
 /// One color language for models, shared by every chart so a hue always means
 /// the same model. System colors keep it native rather than a rainbow.
 enum ModelStyle {
-    /// Stable legend/stack order (most expensive → cheapest, then synthetic).
-    static let order = ["Opus", "Sonnet", "Haiku", "Fable", "Synthetic"]
+    /// Stable legend/stack order (most expensive → cheapest, then synthetic, then profiles).
+    static let order = ["Opus", "Sonnet", "Haiku", "Fable", "Synthetic", "Claude.ai", "Bedrock"]
 
     static func color(_ model: String) -> Color {
         switch model {
@@ -13,6 +13,8 @@ enum ModelStyle {
         case "Haiku":     return .orange
         case "Fable":     return .pink
         case "Synthetic": return .gray
+        case "Claude.ai": return .indigo
+        case "Bedrock":   return .green
         default:          return .gray
         }
     }

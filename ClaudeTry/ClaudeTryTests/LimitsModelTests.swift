@@ -58,6 +58,16 @@ final class LimitsModelTests: XCTestCase {
         XCTAssertEqual(m.session.primaryLabel, "$7.00")
     }
 
+    func test_anthropicMode_whenWindowHasReset_showsZeroPercent() {
+        let s = snap(five: RateWindow(usedPercentage: 80, resetsAt: now.addingTimeInterval(-600)),
+                     seven: RateWindow(usedPercentage: 41, resetsAt: now.addingTimeInterval(86_400)))
+        let m = LimitsModel.make(freshest: s, active: [], sessionCostUSD: 0, weeklyCostUSD: 0,
+                                 budgets: Budgets(weeklyUSD: 50, sessionUSD: 10), now: now)
+        XCTAssertEqual(m.session.fraction, 0)
+        XCTAssertEqual(m.session.primaryLabel, "0%")
+        XCTAssertTrue(m.session.isReal)
+    }
+
     func test_timing_sumsActiveSnapshots() {
         let a = snap(api: 1000, wall: 5000, id: "a")
         let b = snap(api: 2000, wall: 7000, id: "b")

@@ -13,7 +13,7 @@ final class UsageStoreTests: XCTestCase {
             return ClaudeMessage(timestamp: date, role: "assistant", model: model,
                                   inputTokens: tokens, outputTokens: 0,
                                   cacheReadTokens: 0, cacheWriteTokens: 0,
-                                  toolCalls: tc, projectPath: "/p")
+                                  toolCalls: tc, projectPath: "/p", isBedrock: false)
         }
 
         return [

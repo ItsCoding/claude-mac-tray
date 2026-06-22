@@ -73,6 +73,14 @@ enum BucketUnit {
     }
 }
 
+/// Which Claude deployment produced a session — detected from the message `id`
+/// field in the JSONL. Bedrock message IDs start with `msg_bdrk_`; everything
+/// else is the Claude.ai / direct-API path.
+enum ClaudeProfile: String, CaseIterable {
+    case anthropic = "Claude.ai"
+    case bedrock   = "Bedrock"
+}
+
 /// Friendly model name for legends. Collapses dated/undated ids to one family.
 func shortModelName(_ model: String) -> String {
     if model == "<synthetic>" || model.isEmpty { return "Synthetic" }
@@ -126,6 +134,8 @@ struct ClaudeMessage {
     let cacheWriteTokens: Int
     let toolCalls: [ToolCall]
     let projectPath: String
+    /// Bedrock message IDs start with "msg_bdrk_"; nil means unknown (treated as Claude.ai).
+    let isBedrock: Bool
 }
 
 struct Session: Identifiable {
@@ -165,6 +175,10 @@ struct Session: Identifiable {
 
     var primaryModel: String? {
         modelBreakdown.max(by: { ($0.value.input + $0.value.output) < ($1.value.input + $1.value.output) })?.key
+    }
+
+    var profile: ClaudeProfile {
+        messages.contains { $0.isBedrock } ? .bedrock : .anthropic
     }
 }
 

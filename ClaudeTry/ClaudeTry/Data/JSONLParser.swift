@@ -112,6 +112,8 @@ actor JSONLParser {
             else { continue }
 
             let model = messageDict["model"] as? String
+            let messageID = messageDict["id"] as? String
+            let isBedrock = messageID?.hasPrefix("msg_bdrk_") == true
             let usage = messageDict["usage"] as? [String: Any]
             let inputTokens      = usage?["input_tokens"] as? Int ?? 0
             let outputTokens     = usage?["output_tokens"] as? Int ?? 0
@@ -162,7 +164,8 @@ actor JSONLParser {
                 cacheReadTokens: cacheReadTokens,
                 cacheWriteTokens: cacheWriteTokens,
                 toolCalls: toolCalls,
-                projectPath: resolvedCwd ?? fallbackPath
+                projectPath: resolvedCwd ?? fallbackPath,
+                isBedrock: isBedrock
             ))
         }
 

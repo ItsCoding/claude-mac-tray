@@ -65,6 +65,21 @@ final class StatuslineInstallerTests: XCTestCase {
         XCTAssertTrue(inst.isInstalled)
     }
 
+    func test_isInstalled_detectsChainWrapper() throws {
+        // A custom wrapper that calls our script in the background (like claude-hud-with-tray.sh)
+        let wrapperURL = dir.appendingPathComponent("claude-hud-with-tray.sh")
+        let wrapperContent = """
+        #!/bin/bash
+        input=$(cat)
+        printf '%s' "$input" | "\(scriptURL.path)" >/dev/null 2>&1 &
+        printf '%s' "$input" | some-other-tool
+        """
+        try wrapperContent.write(to: wrapperURL, atomically: true, encoding: .utf8)
+        let settingsDict: [String: Any] = ["statusLine": ["type": "command", "command": wrapperURL.path]]
+        try JSONSerialization.data(withJSONObject: settingsDict).write(to: settingsURL)
+        XCTAssertTrue(installer().isInstalled)
+    }
+
     func test_install_isIdempotent() throws {
         try Data(#"{"statusLine":{"type":"command","command":"old-cmd"}}"#.utf8).write(to: settingsURL)
         let inst = installer()
