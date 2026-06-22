@@ -28,7 +28,15 @@ struct DashboardView: View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.5)
-            if expanded {
+            if !store.isLoaded {
+                VStack(spacing: 10) {
+                    ProgressView()
+                    Text("Parsing").font(.subheadline.weight(.medium))
+                    Text("Reading usage data…").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 48)
+            } else if expanded {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         heroCard(compact: false)
@@ -75,6 +83,7 @@ struct DashboardView: View {
             }
         }
         .frame(width: 460)
+        .animation(.easeInOut(duration: 0.2), value: store.isLoaded)
         .background(GeometryReader { proxy in
             Color.clear
                 .onAppear { onHeight(proxy.size.height) }

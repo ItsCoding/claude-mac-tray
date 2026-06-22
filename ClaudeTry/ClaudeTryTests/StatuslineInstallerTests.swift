@@ -28,11 +28,11 @@ final class StatuslineInstallerTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    func test_scriptContents_embedsSnapshotDirAndPrior() {
-        let s = installer().scriptContents(chainingTo: "my-prior --line")
+    func test_scriptContents_embedsSnapshotDir() {
+        let s = installer().scriptContents()
         XCTAssertTrue(s.contains(snapDir.path))
-        XCTAssertTrue(s.contains("my-prior --line"))
         XCTAssertTrue(s.contains("session_id"))
+        XCTAssertTrue(s.contains("claude-tray-prior.sh"))
     }
 
     func test_install_writesScriptAndPointsSettingsAtIt() throws {
@@ -44,7 +44,7 @@ final class StatuslineInstallerTests: XCTestCase {
         XCTAssertEqual(settings["model"] as? String, "x")           // preserved
         let sl = try XCTUnwrap(settings["statusLine"] as? [String: Any])
         XCTAssertEqual(sl["type"] as? String, "command")
-        XCTAssertEqual(sl["command"] as? String, scriptURL.path)
+        XCTAssertEqual(sl["command"] as? String, "bash \"\(scriptURL.path)\"")
     }
 
     func test_install_recordsAndChainsPriorStatusLine() throws {
@@ -53,8 +53,10 @@ final class StatuslineInstallerTests: XCTestCase {
 
         XCTAssertNotNil(config.previousStatusLine)
         XCTAssertTrue(config.previousStatusLine!.contains("old-cmd"))
-        let script = try String(contentsOf: scriptURL, encoding: .utf8)
-        XCTAssertTrue(script.contains("old-cmd"))                   // chained
+        // Prior command is written to companion script, not embedded in main script
+        let priorURL = scriptURL.deletingLastPathComponent().appendingPathComponent("claude-tray-prior.sh")
+        let prior = try String(contentsOf: priorURL, encoding: .utf8)
+        XCTAssertTrue(prior.contains("old-cmd"))
     }
 
     func test_isInstalled_reflectsState() throws {
@@ -98,6 +100,8 @@ final class StatuslineInstallerTests: XCTestCase {
         let sl = try XCTUnwrap(try readSettings()["statusLine"] as? [String: Any])
         XCTAssertEqual(sl["command"] as? String, "old-cmd")
         XCTAssertFalse(FileManager.default.fileExists(atPath: scriptURL.path))
+        let priorURL = scriptURL.deletingLastPathComponent().appendingPathComponent("claude-tray-prior.sh")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: priorURL.path))
         XCTAssertNil(config.previousStatusLine)
     }
 

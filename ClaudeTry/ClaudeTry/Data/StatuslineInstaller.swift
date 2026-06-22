@@ -9,6 +9,11 @@ final class StatuslineInstaller {
 
     private let settingsURL: URL
     private let scriptURL: URL
+    /// Companion script that holds the prior statusLine command verbatim.
+    /// Stored as a separate file to avoid any shell-quoting of the prior command.
+    private var priorScriptURL: URL {
+        scriptURL.deletingLastPathComponent().appendingPathComponent("claude-tray-prior.sh")
+    }
     private let snapshotDir: URL
     private let config: AppConfig
 
@@ -31,13 +36,16 @@ final class StatuslineInstaller {
         )
     }
 
-    /// True when settings.json's statusLine command points at our script directly,
-    /// or when the configured command is a wrapper that calls our script.
+    /// The command we write into settings.json — bash-wrapped so paths with spaces work.
+    private var installedCommand: String { "bash \"\(scriptURL.path)\"" }
+
+    /// True when settings.json's statusLine command is ours (either format),
+    /// or when the configured command is a wrapper file that calls our script.
     var isInstalled: Bool {
         guard let dict = readSettings(),
               let sl = dict["statusLine"] as? [String: Any],
               let cmd = sl["command"] as? String else { return false }
-        if cmd == scriptURL.path { return true }
+        if cmd == installedCommand || cmd == scriptURL.path { return true }
         // Detect chain wrappers (e.g. claude-hud-with-tray.sh) that call our script
         if let content = try? String(contentsOfFile: cmd, encoding: .utf8) {
             return content.contains(scriptURL.path)
@@ -45,26 +53,41 @@ final class StatuslineInstaller {
         return false
     }
 
-    /// The POSIX `sh` wrapper. Writes the payload to `<snapshotDir>/<session_id>.json`
-    /// (atomic temp + rename), then chains to `previous` if given, else prints a
-    /// minimal `[model]` line so the statusline is never blank.
-    func scriptContents(chainingTo previous: String?) -> String {
-        // POSIX single-quote escape: close quote, escaped literal quote, reopen quote
-        let prior = (previous ?? "").replacingOccurrences(of: "'", with: "'\\''")
+    /// True when claude-hud is part of the statusLine — either as the current command
+    /// (not yet installed) or as the saved prior command (already installed + chained).
+    var claudeHudInvolved: Bool {
+        if isInstalled {
+            guard let saved = config.previousStatusLine,
+                  let obj = try? JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: Any],
+                  let cmd = obj["command"] as? String else { return false }
+            return cmd.contains("claude-hud")
+        } else {
+            guard let dict = readSettings(),
+                  let sl = dict["statusLine"] as? [String: Any],
+                  let cmd = sl["command"] as? String else { return false }
+            return cmd.contains("claude-hud")
+        }
+    }
+
+    /// Main wrapper script. Captures the payload, then delegates to the companion
+    /// prior script if present, else falls back to displaying the model name.
+    /// The prior command lives in a separate file so no shell-quoting is needed.
+    func scriptContents() -> String {
+        // Single-quote escape only needed for snapshotDir.path (companion path uses double-quotes)
+        let snap = snapshotDir.path.replacingOccurrences(of: "'", with: "'\\''")
         return """
         #!/bin/sh
         # ClaudeTry statusline wrapper — captures usage payload, then chains.
-        SNAP_DIR='\(snapshotDir.path)'
+        SNAP_DIR='\(snap)'
+        PRIOR="\(priorScriptURL.path)"
         mkdir -p "$SNAP_DIR"
         input=$(cat)
-        # Extract session_id only; payload is written verbatim (UsageSnapshot.decode remains the single source of truth)
         sid=$(printf '%s' "$input" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
         [ -z "$sid" ] && sid="unknown"
         tmp="$SNAP_DIR/.$sid.tmp"
         printf '%s' "$input" > "$tmp" && mv "$tmp" "$SNAP_DIR/$sid.json"
-        PRIOR='\(prior)'
-        if [ -n "$PRIOR" ]; then
-          printf '%s' "$input" | sh -c "$PRIOR"
+        if [ -f "$PRIOR" ]; then
+          printf '%s' "$input" | sh "$PRIOR"
         else
           printf '%s' "$input" | sed -n 's/.*"display_name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/[\\1]/p'
         fi
@@ -76,8 +99,10 @@ final class StatuslineInstaller {
 
         // Capture the prior statusLine for chaining + restore, unless we're already installed.
         var priorCommand: String? = nil
-        if let sl = dict["statusLine"] as? [String: Any], (sl["command"] as? String) != scriptURL.path {
-            priorCommand = sl["command"] as? String
+        if let sl = dict["statusLine"] as? [String: Any],
+           let existingCmd = sl["command"] as? String,
+           existingCmd != installedCommand && existingCmd != scriptURL.path {
+            priorCommand = existingCmd
             if let data = try? JSONSerialization.data(withJSONObject: sl),
                let json = String(data: data, encoding: .utf8) {
                 config.previousStatusLine = json
@@ -87,13 +112,21 @@ final class StatuslineInstaller {
             priorCommand = obj["command"] as? String  // re-install: reuse the saved prior
         }
 
-        // Write the wrapper script (executable) and point settings.json at it.
         try FileManager.default.createDirectory(at: scriptURL.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
-        try scriptContents(chainingTo: priorCommand).write(to: scriptURL, atomically: true, encoding: .utf8)
+
+        // Write the prior command verbatim into a companion script — no quoting needed.
+        if let cmd = priorCommand {
+            try "#!/bin/sh\n\(cmd)\n".write(to: priorScriptURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: priorScriptURL.path)
+        } else {
+            try? FileManager.default.removeItem(at: priorScriptURL)
+        }
+
+        try scriptContents().write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
-        dict["statusLine"] = ["type": "command", "command": scriptURL.path]
+        dict["statusLine"] = ["type": "command", "command": installedCommand]
         try writeSettings(dict)
     }
 
@@ -108,6 +141,7 @@ final class StatuslineInstaller {
         try writeSettings(dict)
         config.previousStatusLine = nil
         try? FileManager.default.removeItem(at: scriptURL)
+        try? FileManager.default.removeItem(at: priorScriptURL)
     }
 
     private func readSettings() -> [String: Any]? {

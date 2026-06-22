@@ -25,6 +25,7 @@ struct ModelBucket: Identifiable {
 @MainActor
 final class UsageStore {
     var sessions: [Session] = []
+    private(set) var isLoaded = false
     private var timer: Timer?
     private let parser = JSONLParser()
     private let snapshots: SnapshotStore
@@ -80,6 +81,7 @@ final class UsageStore {
         let result = await parser.scan(rootURL: rootURL)
         sessions = result.sessions.sorted { $0.startTime > $1.startTime }
         snapshots.reload()
+        isLoaded = true
     }
 
     /// Cumulative cost over time for a single project — points are per-session

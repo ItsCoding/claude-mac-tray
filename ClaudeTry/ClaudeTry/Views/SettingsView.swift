@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var weekly: Double
     @State private var session: Double
     @State private var installed: Bool
+    @State private var claudeHud: Bool
     @State private var errorText: String?
 
     init(config: AppConfig = AppConfig(), installer: StatuslineInstaller = .standard()) {
@@ -17,6 +18,7 @@ struct SettingsView: View {
         _weekly = State(initialValue: b.weeklyUSD)
         _session = State(initialValue: b.sessionUSD)
         _installed = State(initialValue: installer.isInstalled)
+        _claudeHud = State(initialValue: installer.claudeHudInvolved)
     }
 
     var body: some View {
@@ -35,10 +37,8 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Live usage integration").font(.subheadline.weight(.semibold))
-                Text(installed ? "Installed — capturing usage from Claude Code's statusline."
-                               : "Not installed. Captures live usage and chains to any existing statusline.")
-                    .font(.caption2).foregroundStyle(.secondary)
-                Button(installed ? "Uninstall" : "Install statusline integration") {
+                Text(statusDescription).font(.caption2).foregroundStyle(.secondary)
+                Button(installed ? "Uninstall" : (claudeHud ? "Install combined wrapper" : "Install statusline integration")) {
                     toggleInstall()
                 }
                 .controlSize(.small)
@@ -64,11 +64,23 @@ struct SettingsView: View {
         }
     }
 
+    private var statusDescription: String {
+        if installed {
+            return claudeHud
+                ? "Installed — capturing usage and chaining output to claude-hud."
+                : "Installed — capturing usage from Claude Code's statusline."
+        }
+        return claudeHud
+            ? "claude-hud detected. Will create a combined wrapper: usage data captured silently, claude-hud output returned."
+            : "Not installed. Captures live usage and chains to any existing statusline."
+    }
+
     private func toggleInstall() {
         errorText = nil
         do {
             if installed { try installer.uninstall() } else { try installer.install() }
             installed = installer.isInstalled
+            claudeHud = installer.claudeHudInvolved
         } catch {
             errorText = "Could not update ~/.claude/settings.json."
         }
