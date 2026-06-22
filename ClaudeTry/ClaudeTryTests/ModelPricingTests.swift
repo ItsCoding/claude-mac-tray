@@ -1,6 +1,7 @@
 import XCTest
 @testable import ClaudeTry
 
+@MainActor
 final class ModelPricingTests: XCTestCase {
     func test_cost_knownModel_returnsCorrectCost() {
         // claude-sonnet-4-6: $3/M input, $15/M output, $0.30/M cache read, $3.75/M cache write

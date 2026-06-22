@@ -57,4 +57,35 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(tools.first?.name, "Bash")
         XCTAssertEqual(tools.first?.count, 1)
     }
+
+    @MainActor func test_limits_bedrockMode_whenNoSnapshots() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("us-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let store = UsageStore(snapshots: SnapshotStore(directory: dir),
+                               config: AppConfig(defaults: UserDefaults(suiteName: "us-\(UUID().uuidString)")!))
+        store.sessions = makeSessions()
+        XCTAssertEqual(store.limits.mode, .bedrock)
+        // Session bar reflects the last-5h cost vs the $10 session budget; today's
+        // sessions exist, so cost is >= 0 and the label is dollar-formatted.
+        XCTAssertTrue(store.limits.session.primaryLabel.hasPrefix("$"))
+    }
+
+    @MainActor func test_limits_anthropicMode_whenSnapshotHasRateLimits() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("us-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let json = #"{"session_id":"s","rate_limits":{"five_hour":{"used_percentage":50,"resets_at":4000000000},"seven_day":{"used_percentage":20,"resets_at":4000000000}}}"#
+        try Data(json.utf8).write(to: dir.appendingPathComponent("s.json"))
+
+        let snapshots = SnapshotStore(directory: dir)
+        snapshots.reload()
+        let store = UsageStore(snapshots: snapshots,
+                               config: AppConfig(defaults: UserDefaults(suiteName: "us-\(UUID().uuidString)")!))
+        store.sessions = makeSessions()
+        XCTAssertEqual(store.limits.mode, .anthropic)
+        XCTAssertEqual(store.limits.session.fraction, 0.5, accuracy: 0.0001)
+        XCTAssertTrue(store.limits.session.isReal)
+    }
 }

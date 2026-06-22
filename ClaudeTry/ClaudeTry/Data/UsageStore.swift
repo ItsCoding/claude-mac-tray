@@ -27,6 +27,29 @@ final class UsageStore {
     var sessions: [Session] = []
     private var timer: Timer?
     private let parser = JSONLParser()
+    private let snapshots: SnapshotStore
+    private let config: AppConfig
+
+    init(snapshots: SnapshotStore = .standard(), config: AppConfig = AppConfig()) {
+        self.snapshots = snapshots
+        self.config = config
+    }
+
+    /// Session (5h) + weekly (7d) limit bars and the API/wall-time readout.
+    /// Anthropic mode when snapshots carry real `rate_limits`, else Bedrock budgets.
+    var limits: LimitsModel {
+        let now = Date()
+        let cal = Calendar.current
+        let fiveHourAgo = now.addingTimeInterval(-5 * 3600)
+        let sevenDaysAgo = cal.date(byAdding: .day, value: -7, to: now) ?? now.addingTimeInterval(-7 * 86_400)
+        let sessionCost = totalCost(in: DateInterval(start: fiveHourAgo, end: now.addingTimeInterval(60))) ?? 0
+        let weeklyCost = totalCost(in: DateInterval(start: sevenDaysAgo, end: now.addingTimeInterval(60))) ?? 0
+        return LimitsModel.make(
+            freshest: snapshots.freshest, active: snapshots.active,
+            sessionCostUSD: sessionCost, weeklyCostUSD: weeklyCost,
+            budgets: config.budgets, now: now
+        )
+    }
 
     var projects: [ProjectSummary] {
         Dictionary(grouping: sessions, by: \.projectPath)
@@ -56,6 +79,7 @@ final class UsageStore {
             .appendingPathComponent(".claude/projects")
         let result = await parser.scan(rootURL: rootURL)
         sessions = result.sessions.sorted { $0.startTime > $1.startTime }
+        snapshots.reload()
     }
 
     /// Cumulative cost over time for a single project — points are per-session
