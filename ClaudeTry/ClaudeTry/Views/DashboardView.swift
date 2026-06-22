@@ -15,13 +15,15 @@ struct DashboardView: View {
     @State private var showingSettings = false
     private let installer = StatuslineInstaller.standard()
 
-    private enum Activity: String, CaseIterable { case cost = "Cost", tokens = "Tokens", profile = "Profile" }
+    private enum Activity: String, CaseIterable { case cost = "Cost", tokens = "Tokens", profile = "Profile", tools = "Tools", projects = "Projects" }
 
     private var interval: DateInterval { range.interval }
     private var filtered: [Session] { store.filteredSessions(in: interval) }
     private var totals: TokenCount { store.tokenTotals(in: interval) }
     private var buckets: [ModelBucket] { store.modelBuckets(in: interval) }
     private var profileBuckets: [ModelBucket] { store.profileBuckets(in: interval) }
+    private var toolBuckets: [ModelBucket] { store.toolBuckets(in: interval) }
+    private var projectBuckets: [ModelBucket] { store.projectBuckets(in: interval) }
     private var unit: BucketUnit { store.bucketUnit(in: interval) }
 
     var body: some View {
@@ -218,13 +220,15 @@ struct DashboardView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 180)
+            .frame(maxWidth: .infinity)
             .controlSize(.small)
         } content: {
             switch activity {
             case .cost:    BucketBarChart(buckets: buckets, unit: unit, metric: .cost, height: 150)
             case .tokens:  BucketBarChart(buckets: buckets, unit: unit, metric: .tokens, height: 150)
             case .profile: BucketBarChart(buckets: profileBuckets, unit: unit, metric: .cost, height: 150)
+            case .tools:    BucketBarChart(buckets: toolBuckets, unit: unit, metric: .count, height: 150)
+            case .projects: BucketBarChart(buckets: projectBuckets, unit: unit, metric: .cost, height: 150)
             }
         }
     }

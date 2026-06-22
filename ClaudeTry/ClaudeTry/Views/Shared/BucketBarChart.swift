@@ -4,7 +4,7 @@ import Charts
 /// Stacked-by-model bar chart with a hover tooltip. Used for cost (Overview),
 /// tokens (Charts) and per-project cost (Projects) so interaction is identical.
 struct BucketBarChart: View {
-    enum Metric { case cost, tokens }
+    enum Metric { case cost, tokens, count }
 
     let buckets: [ModelBucket]
     let unit: BucketUnit
@@ -17,10 +17,18 @@ struct BucketBarChart: View {
 
     private var uniqueDates: [Date] { Array(Set(buckets.map(\.date))).sorted() }
     private func value(_ b: ModelBucket) -> Double {
-        metric == .cost ? b.cost : Double(b.totalTokens)
+        switch metric {
+        case .cost:   return b.cost
+        case .tokens: return Double(b.totalTokens)
+        case .count:  return Double(b.inputTokens)
+        }
     }
     private func format(_ v: Double) -> String {
-        metric == .cost ? String(format: "$%.2f", v) : Int(v).abbrev
+        switch metric {
+        case .cost:   return String(format: "$%.2f", v)
+        case .tokens: return Int(v).abbrev
+        case .count:  return "\(Int(v))"
+        }
     }
     private var selectedRows: [ModelBucket] {
         guard let selected else { return [] }
@@ -49,8 +57,11 @@ struct BucketBarChart: View {
                 AxisGridLine()
                 AxisValueLabel {
                     if let v = value.as(Double.self) {
-                        Text(metric == .cost ? v.formatted(.currency(code: "USD").precision(.fractionLength(0)))
-                                             : Int(v).abbrev)
+                        switch metric {
+                        case .cost:   Text(v.formatted(.currency(code: "USD").precision(.fractionLength(0))))
+                        case .tokens: Text(Int(v).abbrev)
+                        case .count:  Text("\(Int(v))")
+                        }
                     }
                 }
             }

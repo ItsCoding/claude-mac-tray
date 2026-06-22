@@ -25,7 +25,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // stays put and it grows downward); `.preferredContentSize` auto-sizing
         // detaches it and makes it jump on expand/collapse.
         let root = PopoverRootView(onHeight: { [weak self] height in
-            self?.popover.contentSize = NSSize(width: 460, height: height)
+            guard let self, abs(self.popover.contentSize.height - height) > 1 else { return }
+            self.popover.contentSize = NSSize(width: 460, height: height)
         }).environment(store)
         popover.contentViewController = NSHostingController(rootView: root)
 

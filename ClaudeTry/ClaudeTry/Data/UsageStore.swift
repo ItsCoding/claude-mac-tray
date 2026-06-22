@@ -236,6 +236,54 @@ final class UsageStore {
         }.sorted { $0.date != $1.date ? $0.date < $1.date : $0.model < $1.model }
     }
 
+    /// Per-bucket, per-tool call count. Reuses ModelBucket with count stored in
+    /// inputTokens (outputTokens = 0, cost = 0) so BucketBarChart(.count) renders it.
+    /// Capped to the top 6 tools by total calls to keep the legend readable.
+    func toolBuckets(in interval: DateInterval) -> [ModelBucket] {
+        let unit = bucketUnit(in: interval)
+        let cal = Calendar.current
+        var counts: [Date: [String: Int]] = [:]
+        for session in filteredSessions(in: interval) {
+            for msg in session.messages {
+                let bucket = truncate(msg.timestamp, to: unit, cal: cal)
+                for call in msg.toolCalls {
+                    counts[bucket, default: [:]][call.name, default: 0] += 1
+                }
+            }
+        }
+        let totals = counts.values.reduce(into: [String: Int]()) { acc, d in
+            d.forEach { acc[$0.key, default: 0] += $0.value }
+        }
+        let top = Set(totals.sorted { $0.value > $1.value }.prefix(6).map(\.key))
+        return counts.flatMap { date, tools in
+            tools.compactMap { name, count -> ModelBucket? in
+                guard top.contains(name) else { return nil }
+                return ModelBucket(date: date, model: name, inputTokens: count, outputTokens: 0, cost: 0)
+            }
+        }.sorted { $0.date != $1.date ? $0.date < $1.date : $0.model < $1.model }
+    }
+
+    /// Per-bucket, per-project cost. Top 6 projects by total cost in the interval.
+    func projectBuckets(in interval: DateInterval) -> [ModelBucket] {
+        let unit = bucketUnit(in: interval)
+        let cal = Calendar.current
+        let sessions = filteredSessions(in: interval)
+        var cost: [Date: [String: Double]] = [:]
+        for session in sessions {
+            let bucket = truncate(session.startTime, to: unit, cal: cal)
+            cost[bucket, default: [:]][session.projectName, default: 0] += ModelPricing.cost(for: session) ?? 0
+        }
+        let totals = Dictionary(grouping: sessions, by: \.projectName)
+            .mapValues { $0.reduce(0.0) { $0 + (ModelPricing.cost(for: $1) ?? 0) } }
+        let top = Set(totals.sorted { $0.value > $1.value }.prefix(6).map(\.key))
+        return cost.flatMap { date, projects in
+            projects.compactMap { name, c -> ModelBucket? in
+                guard top.contains(name) else { return nil }
+                return ModelBucket(date: date, model: name, inputTokens: 0, outputTokens: 0, cost: c)
+            }
+        }.sorted { $0.date != $1.date ? $0.date < $1.date : $0.model < $1.model }
+    }
+
     /// Running USD total across the range, one point per session, for an
     /// "is my spend accelerating?" cumulative area chart.
     func cumulativeCost(in interval: DateInterval) -> [(date: Date, cumulative: Double)] {
