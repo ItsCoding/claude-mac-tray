@@ -12,6 +12,8 @@ struct DashboardView: View {
     @State private var hoverDate: Date?
     @State private var expandedProject: String?
     @State private var expanded = false
+    @State private var showingSettings = false
+    private let installer = StatuslineInstaller.standard()
 
     private enum Activity: String, CaseIterable { case cost = "Cost", tokens = "Tokens" }
 
@@ -29,6 +31,9 @@ struct DashboardView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         heroCard(compact: false)
+                        LimitsSection(limits: store.limits, compact: false,
+                                      showConnectPrompt: !installer.isInstalled,
+                                      onConnect: { showingSettings = true })
                         if buckets.isEmpty {
                             ContentUnavailableView("No usage in this range", systemImage: "chart.bar")
                                 .frame(height: 260)
@@ -50,6 +55,9 @@ struct DashboardView: View {
             } else {
                 VStack(alignment: .leading, spacing: 14) {
                     heroCard(compact: true)
+                    LimitsSection(limits: store.limits, compact: true,
+                                  showConnectPrompt: !installer.isInstalled,
+                                  onConnect: { showingSettings = true })
                     if buckets.isEmpty {
                         ContentUnavailableView("No usage today", systemImage: "chart.bar")
                             .frame(height: 200)
@@ -95,6 +103,12 @@ struct DashboardView: View {
                     .font(.callout).foregroundStyle(.indigo)
                 Text("Claude Usage").font(.headline)
                 Spacer()
+                Button { showingSettings = true } label: {
+                    Image(systemName: "gearshape").font(.callout).foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
+                .popover(isPresented: $showingSettings, arrowEdge: .bottom) { SettingsView() }
             }
             if expanded { RangePicker(range: $range) }
         }
