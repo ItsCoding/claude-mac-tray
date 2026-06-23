@@ -66,7 +66,7 @@ struct BucketBarChart: View {
                 }
             }
         }
-        .chartLegend(position: .bottom, spacing: 10)
+        .chartLegend(.hidden)
         .frame(height: height)
         .animation(.easeOut(duration: 0.12), value: selected)
         .chartOverlay { proxy in

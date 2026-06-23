@@ -19,14 +19,21 @@ enum ModelStyle {
         }
     }
 
+    private static let palette: [Color] = [
+        .blue, .green, .orange, .pink, .purple, .red, .cyan, .mint, .brown, .yellow
+    ]
+
     /// Domain + matching colors for `chartForegroundStyleScale`, restricted to
     /// the models actually present and kept in a stable order.
+    /// Known model names get their fixed color; everything else (tool names,
+    /// project names) cycles through a palette so bars are always distinct.
     static func scale(for models: some Sequence<String>) -> (domain: [String], range: [Color]) {
         let present = Set(models)
         let known = order.filter(present.contains)
         let extra = present.subtracting(order).sorted()
         let domain = known + extra
-        return (domain, domain.map(color))
+        let range = known.map(color) + extra.enumerated().map { i, _ in palette[i % palette.count] }
+        return (domain, range)
     }
 }
 
