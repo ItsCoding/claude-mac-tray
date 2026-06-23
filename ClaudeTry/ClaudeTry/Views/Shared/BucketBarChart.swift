@@ -15,6 +15,11 @@ struct BucketBarChart: View {
 
     private let tooltipWidth: CGFloat = 150
 
+    private var colorMap: [String: Color] {
+        let s = ModelStyle.scale(for: buckets.map(\.model))
+        return Dictionary(uniqueKeysWithValues: zip(s.domain, s.range))
+    }
+
     private var uniqueDates: [Date] { Array(Set(buckets.map(\.date))).sorted() }
     private func value(_ b: ModelBucket) -> Double {
         switch metric {
@@ -108,7 +113,7 @@ struct BucketBarChart: View {
                 .font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
             ForEach(selectedRows) { b in
                 HStack(spacing: 6) {
-                    Circle().fill(ModelStyle.color(b.model)).frame(width: 6, height: 6)
+                    Circle().fill(colorMap[b.model] ?? .gray).frame(width: 6, height: 6)
                     Text(b.model).font(.caption2)
                     Spacer(minLength: 10)
                     Text(format(value(b))).font(.caption2.monospacedDigit())

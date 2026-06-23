@@ -18,16 +18,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 460, height: 480)
+        // Fixed size, set once and never changed while shown. NSPopover re-derives
+        // its window frame from the positioning rect on every contentSize change
+        // (and on a far-right status item that re-derivation drifts horizontally) —
+        // there is no API to pin it. So instead of resizing live, the content is a
+        // constant height and pages scroll within it. This removes the drift at its
+        // source rather than trying to counteract AppKit's re-anchoring.
+        popover.contentSize = NSSize(width: 460, height: 570)
         popover.behavior = .transient
-        // Resize explicitly from the SwiftUI content's measured height. Setting
-        // contentSize keeps the popover anchored to the status item (the arrow
-        // stays put and it grows downward); `.preferredContentSize` auto-sizing
-        // detaches it and makes it jump on expand/collapse.
-        let root = PopoverRootView(onHeight: { [weak self] height in
-            guard let self, abs(self.popover.contentSize.height - height) > 1 else { return }
-            self.popover.contentSize = NSSize(width: 460, height: height)
-        }).environment(store)
+        popover.animates = false
+        let root = PopoverRootView().environment(store)
         popover.contentViewController = NSHostingController(rootView: root)
 
         store.startPolling()
@@ -46,6 +46,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func updateStatusLabel() {
+        // Skip while the popover is open: the status item is variableLength, so
+        // changing the title's width reflows the button and drags the anchored
+        // popover sideways. Refresh once it's closed.
+        guard !popover.isShown else { return }
         if let cost = store.totalCost(for: .today) {
             statusItem.button?.title = String(format: " $%.2f", cost)
         } else {
@@ -59,6 +63,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            // Accessory (LSUIElement) apps aren't active when the status item is
+            // clicked, so the popover never becomes key (no focus) and .transient
+            // dismissal can't see outside clicks. Activating fixes both.
+            NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }

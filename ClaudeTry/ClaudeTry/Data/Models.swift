@@ -1,6 +1,6 @@
 import Foundation
 
-enum MemoryOperation { case read, write, create }
+enum MemoryOperation: String, Codable { case read, write, create }
 
 enum TimePeriod: String, CaseIterable {
     case today = "Today"
@@ -103,12 +103,12 @@ extension Int {
     }
 }
 
-struct ToolCall: Hashable {
+struct ToolCall: Hashable, Codable {
     let name: String
     let arguments: [String: String]
 }
 
-struct TokenCount {
+struct TokenCount: Codable {
     let input: Int
     let output: Int
     let cacheRead: Int
@@ -124,7 +124,7 @@ struct TokenCount {
     }
 }
 
-struct ClaudeMessage {
+struct ClaudeMessage: Codable {
     let timestamp: Date
     let role: String
     let model: String?
@@ -136,6 +136,8 @@ struct ClaudeMessage {
     let projectPath: String
     /// Bedrock message IDs start with "msg_bdrk_"; nil means unknown (treated as Claude.ai).
     let isBedrock: Bool
+    let linesAdded: Int
+    let linesRemoved: Int
 }
 
 struct Session: Identifiable {
@@ -150,7 +152,18 @@ struct Session: Identifiable {
     var totalCacheReadTokens: Int { messages.reduce(0) { $0 + $1.cacheReadTokens } }
     var totalCacheWriteTokens: Int { messages.reduce(0) { $0 + $1.cacheWriteTokens } }
 
-    var projectName: String { (projectPath as NSString).lastPathComponent }
+    var projectName: String {
+        // Subagents run in worktrees at <project>/.claude/worktrees/agent-… (or
+        // <project>/.worktrees/…), whose last path component is the agent id.
+        // Attribute those to the parent project instead of showing the agent id.
+        var path = projectPath
+        for marker in ["/.claude/worktrees/", "/.worktrees/"] {
+            if let r = path.range(of: marker) { path = String(path[..<r.lowerBound]); break }
+        }
+        return (path as NSString).lastPathComponent
+    }
+    var linesAdded: Int   { messages.reduce(0) { $0 + $1.linesAdded } }
+    var linesRemoved: Int { messages.reduce(0) { $0 + $1.linesRemoved } }
 
     var modelBreakdown: [String: TokenCount] {
         var result: [String: TokenCount] = [:]
@@ -199,7 +212,7 @@ struct ProjectSummary: Identifiable {
     }
 }
 
-struct MemoryEvent: Identifiable {
+struct MemoryEvent: Identifiable, Codable {
     let id: UUID
     let timestamp: Date
     let projectPath: String

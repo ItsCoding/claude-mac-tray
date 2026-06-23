@@ -1,25 +1,19 @@
 import Foundation
 
-struct ParsedFile {
+struct ParsedFile: Codable {
     let messages: [ClaudeMessage]
     let memoryEvents: [MemoryEvent]
-    /// Working directory reported by Claude Code (`cwd`), used as the project
-    /// identity. Falls back to the file's parent directory when absent.
     let projectPath: String
 }
 
 actor JSONLParser {
-    /// Persistent cache of parsed results keyed by file, with the mtime they
-    /// were parsed at. Unchanged files are reused; every scan returns the FULL
-    /// set so the store never loses sessions between polls.
-    private struct CacheEntry {
+    private struct CacheEntry: Codable {
         let mtime: Date?
         let parsed: ParsedFile
     }
     private var cache: [URL: CacheEntry] = [:]
+    private var diskCacheLoaded = false
 
-    // Two formatters: Claude Code sometimes writes fractional seconds, sometimes not.
-    // Stored as actor properties so they are allocated once, not on every parseFile call.
     private let isoFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -31,7 +25,35 @@ actor JSONLParser {
         return f
     }()
 
+    private var diskCacheURL: URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let dir = caches.appendingPathComponent("ClaudeTry")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("sessions_v2.json")
+    }
+
+    private func loadDiskCache() {
+        guard let data = try? Data(contentsOf: diskCacheURL),
+              let loaded = try? JSONDecoder().decode([String: CacheEntry].self, from: data)
+        else { return }
+        for (urlStr, entry) in loaded {
+            guard let url = URL(string: urlStr) else { continue }
+            cache[url] = entry
+        }
+    }
+
+    private func saveDiskCache() {
+        let serializable = Dictionary(uniqueKeysWithValues: cache.map { ($0.key.absoluteString, $0.value) })
+        guard let data = try? JSONEncoder().encode(serializable) else { return }
+        try? data.write(to: diskCacheURL, options: .atomic)
+    }
+
     func scan(rootURL: URL) async -> (sessions: [Session], memoryEvents: [MemoryEvent]) {
+        if !diskCacheLoaded {
+            loadDiskCache()
+            diskCacheLoaded = true
+        }
+
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
             at: rootURL,
@@ -39,25 +61,23 @@ actor JSONLParser {
             options: [.skipsHiddenFiles]
         ) else { return ([], []) }
 
-        // Collect URLs synchronously before entering async iteration to avoid
-        // Swift 6 sendability warning on NSEnumerator's makeIterator.
         let fileURLs = enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "jsonl" }
         let presentURLs = Set(fileURLs)
-
-        // Drop cache entries for files that no longer exist.
         cache = cache.filter { presentURLs.contains($0.key) }
 
+        var cacheChanged = false
         for fileURL in fileURLs {
             let mtime = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            // Reuse the cached parse when the file is unchanged.
             if let cached = cache[fileURL], let mtime, cached.mtime == mtime { continue }
 
             let fallbackPath = fileURL.deletingLastPathComponent().path
             let parsed = await parseFile(url: fileURL, projectPath: fallbackPath)
             cache[fileURL] = CacheEntry(mtime: mtime, parsed: parsed)
+            cacheChanged = true
         }
 
-        // Aggregate the FULL cache, not just this scan's deltas.
+        if cacheChanged { saveDiskCache() }
+
         var allSessions: [Session] = []
         var allMemoryEvents: [MemoryEvent] = []
         for entry in cache.values {
@@ -91,7 +111,7 @@ actor JSONLParser {
         var messages: [ClaudeMessage] = []
         var memoryEvents: [MemoryEvent] = []
         var seenMemoryPaths = Set<String>()
-        var resolvedCwd: String?  // first non-empty cwd becomes the project identity
+        var resolvedCwd: String?
         func parseDate(_ s: String) -> Date? { isoFractional.date(from: s) ?? isoWhole.date(from: s) }
 
         for line in content.components(separatedBy: .newlines) {
@@ -121,15 +141,29 @@ actor JSONLParser {
             let cacheWriteTokens = usage?["cache_creation_input_tokens"] as? Int ?? 0
 
             var toolCalls: [ToolCall] = []
-            if let content = messageDict["content"] as? [[String: Any]] {
-                for block in content {
+            var msgLinesAdded = 0
+            var msgLinesRemoved = 0
+
+            if let contentBlocks = messageDict["content"] as? [[String: Any]] {
+                for block in contentBlocks {
                     guard let type = block["type"] as? String, type == "tool_use",
                           let name = block["name"] as? String
                     else { continue }
 
+                    // Strip large content args; count lines instead
                     var args: [String: String] = [:]
                     if let input = block["input"] as? [String: Any] {
-                        for (k, v) in input { args[k] = "\(v)" }
+                        for (k, v) in input {
+                            let s = "\(v)"
+                            switch (name, k) {
+                            case ("Edit", "old_string"):
+                                msgLinesRemoved += s.components(separatedBy: "\n").count
+                            case ("Edit", "new_string"), ("Write", "content"):
+                                msgLinesAdded += s.components(separatedBy: "\n").count
+                            default:
+                                args[k] = s
+                            }
+                        }
                     }
                     toolCalls.append(ToolCall(name: name, arguments: args))
 
@@ -165,7 +199,9 @@ actor JSONLParser {
                 cacheWriteTokens: cacheWriteTokens,
                 toolCalls: toolCalls,
                 projectPath: resolvedCwd ?? fallbackPath,
-                isBedrock: isBedrock
+                isBedrock: isBedrock,
+                linesAdded: msgLinesAdded,
+                linesRemoved: msgLinesRemoved
             ))
         }
 

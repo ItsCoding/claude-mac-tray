@@ -263,6 +263,29 @@ final class UsageStore {
         }.sorted { $0.date != $1.date ? $0.date < $1.date : $0.model < $1.model }
     }
 
+    /// Per-bucket lines added ("Added") and removed ("Removed") from Edit/Write calls.
+    func lineBuckets(in interval: DateInterval) -> [ModelBucket] {
+        let unit = bucketUnit(in: interval)
+        let cal = Calendar.current
+        var added: [Date: Int] = [:]
+        var removed: [Date: Int] = [:]
+        for session in filteredSessions(in: interval) {
+            let bucket = truncate(session.startTime, to: unit, cal: cal)
+            added[bucket, default: 0] += session.linesAdded
+            removed[bucket, default: 0] += session.linesRemoved
+        }
+        var result: [ModelBucket] = []
+        for date in Set(added.keys).union(Set(removed.keys)).sorted() {
+            if let a = added[date], a > 0 {
+                result.append(ModelBucket(date: date, model: "Added", inputTokens: a, outputTokens: 0, cost: 0))
+            }
+            if let r = removed[date], r > 0 {
+                result.append(ModelBucket(date: date, model: "Removed", inputTokens: r, outputTokens: 0, cost: 0))
+            }
+        }
+        return result
+    }
+
     /// Per-bucket, per-project cost. Top 6 projects by total cost in the interval.
     func projectBuckets(in interval: DateInterval) -> [ModelBucket] {
         let unit = bucketUnit(in: interval)
