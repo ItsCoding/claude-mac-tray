@@ -11,6 +11,7 @@ struct DashboardView: View {
     @State private var showingSettings = false
     @State private var showingRange = false
     @State private var galleryPage = 0
+    @State private var showRunway = false
     private let installer = StatuslineInstaller.standard()
 
     private enum Activity: String, CaseIterable {
@@ -145,11 +146,98 @@ struct DashboardView: View {
         VStack(spacing: 12) {
             heroCard
             TimelineView(.periodic(from: .now, by: 30)) { _ in
-                LimitsSection(limits: store.limits, compact: true,
-                              showConnectPrompt: !installer.isInstalled,
-                              onConnect: { showingSettings = true })
+                limitsOrRunwayCard
             }
             activityCard
+        }
+    }
+
+    private var limitsOrRunwayCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Toggle button in top-right corner
+            HStack {
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { showRunway.toggle() }
+                } label: {
+                    Image(systemName: showRunway ? "gauge.with.dots.needle.67percent" : "timer")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(showRunway ? "Show usage bars" : "Show runway forecast")
+            }
+            .padding(.bottom, -4)
+
+            if showRunway {
+                runwayContent
+            } else {
+                if installer.isInstalled {
+                    let limits = store.limits
+                    HStack(alignment: .top, spacing: 12) {
+                        LimitBar(title: "Session · 5h", bar: limits.session)
+                        Divider().frame(height: 40)
+                        LimitBar(title: "Weekly · 7d", bar: limits.weekly)
+                    }
+                    timingLine(limits: limits)
+                } else {
+                    connectPrompt
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: 12)
+    }
+
+    private func timingLine(limits: LimitsModel) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "timer").font(.caption2).foregroundStyle(.secondary)
+            if limits.timing.activeSessions == 0 {
+                Text("No active sessions").font(.caption2).foregroundStyle(.tertiary)
+            } else {
+                Text("API \(TimeFormat.compactDuration(ms: limits.timing.apiMs)) · Wall \(TimeFormat.compactDuration(ms: limits.timing.wallMs))")
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Text("\(limits.timing.activeSessions) active").font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private var connectPrompt: some View {
+        Button(action: { showingSettings = true }) {
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.horizontal.circle")
+                Text("Connect live usage").font(.caption.weight(.medium))
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption2)
+            }
+            .foregroundStyle(.indigo)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder private var runwayContent: some View {
+        let limits = store.limits
+        let runway = store.forecastRunway()
+        if limits.mode != .anthropic {
+            Text("Runway requires the statusline hook (Claude.ai subscription).")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                InlineRunwayBar(title: "Session · 5h",
+                                fraction: limits.session.fraction,
+                                runwayHours: runway.fiveHour,
+                                detail: limits.session.detailLabel)
+                Divider().frame(height: 40)
+                InlineRunwayBar(title: "Weekly · 7d",
+                                fraction: limits.weekly.fraction,
+                                runwayHours: runway.weekly,
+                                detail: limits.weekly.detailLabel)
+            }
+            timingLine(limits: limits)
         }
     }
 
@@ -421,28 +509,57 @@ struct DashboardView: View {
     }
 
     @ViewBuilder private var heatmapPage: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Daily activity").font(.subheadline.weight(.semibold))
-                Spacer()
-                Group {
-                    if let day = hoveredHeatmapDay, let s = heatmapDaySummary[day], s.sessions > 0 {
-                        Text("\(day.formatted(.dateTime.day().month(.abbreviated))): \(String(format: "$%.2f", s.cost)) · \((s.tokens).abbrev) tok · \(s.sessions) sess")
-                    } else {
-                        Text(range.mode == .today ? "Last 30 days" : range.mode.rawValue)
+        VStack(spacing: 12) {
+            // Daily activity heatmap
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Daily activity").font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Group {
+                        if let day = hoveredHeatmapDay, let s = heatmapDaySummary[day], s.sessions > 0 {
+                            Text("\(day.formatted(.dateTime.day().month(.abbreviated))): \(String(format: "$%.2f", s.cost)) · \((s.tokens).abbrev) tok · \(s.sessions) sess")
+                        } else {
+                            Text(range.mode == .today ? "Last 30 days" : range.mode.rawValue)
+                        }
                     }
+                    .font(.caption).foregroundStyle(.secondary)
+                    .animation(.easeInOut(duration: 0.1), value: hoveredHeatmapDay)
                 }
-                .font(.caption).foregroundStyle(.secondary)
-                .animation(.easeInOut(duration: 0.1), value: hoveredHeatmapDay)
+                if dailyCosts.isEmpty {
+                    ContentUnavailableView("No data", systemImage: "calendar").frame(height: 120)
+                } else {
+                    ActivityHeatmap(days: dailyCosts, onHover: { day in hoveredHeatmapDay = day })
+                }
             }
-            if dailyCosts.isEmpty {
-                ContentUnavailableView("No data", systemImage: "calendar").frame(height: 120)
-            } else {
-                ActivityHeatmap(days: dailyCosts, onHover: { day in hoveredHeatmapDay = day })
+            .padding(13)
+            .glassCard(cornerRadius: 16)
+
+            // Hourly spend last 24h
+            let hours = store.last24hHourlyCost()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Hourly spend · last 24h").font(.subheadline.weight(.semibold))
+                if hours.allSatisfy({ $0.cost == 0 }) {
+                    ContentUnavailableView("No activity", systemImage: "chart.bar").frame(height: 90)
+                } else {
+                    Chart(hours, id: \.hour) { item in
+                        BarMark(x: .value("Hour", item.hour, unit: .hour),
+                                y: .value("Cost", item.cost))
+                        .foregroundStyle(.indigo.gradient)
+                        .cornerRadius(3)
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
+                            AxisGridLine()
+                            AxisValueLabel(format: .dateTime.hour(.defaultDigits(amPM: .omitted)))
+                        }
+                    }
+                    .chartYAxis { AxisMarks(format: .currency(code: "USD").precision(.fractionLength(2))) }
+                    .frame(height: 90)
+                }
             }
+            .padding(13)
+            .glassCard(cornerRadius: 16)
         }
-        .padding(13)
-        .glassCard(cornerRadius: 16)
     }
 
     // MARK: Page 3 — Details
@@ -666,4 +783,79 @@ private struct ActivityHeatmap: View {
         intensity < 0.001 ? Color.secondary.opacity(0.15) : Color.indigo.opacity(0.18 + intensity * 0.82)
     }
 
+}
+
+// MARK: – Inline Runway Bar (matches LimitBar sizing for the toggle)
+
+private struct InlineRunwayBar: View {
+    let title: String
+    let fraction: Double
+    let runwayHours: Double?
+    let detail: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Spacer()
+                Text(runwayText).font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(barColor)
+                    .contentTransition(.numericText())
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.secondary.opacity(0.15))
+                    Capsule().fill(barColor.gradient)
+                        .frame(width: max(4, geo.size.width * min(1, fraction)))
+                }
+            }
+            .frame(height: 8)
+            if let detail {
+                Text(detail).font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private var runwayText: String {
+        guard let h = runwayHours else { return fraction >= 0.98 ? "Exhausted" : "—" }
+        if h < 1 { return String(format: "%.0fm", h * 60) }
+        if h < 24 { return String(format: "%.1fh", h) }
+        return String(format: "%.0fd", h / 24)
+    }
+
+    private var barColor: Color {
+        guard let h = runwayHours else { return fraction >= 0.9 ? .red : .indigo }
+        if h < 1 { return .red }
+        if h < 3 { return .orange }
+        return .indigo
+    }
+}
+
+// MARK: – Limit Bar (mirrors LimitsSection's private LimitBar for the toggle card)
+
+private struct LimitBar: View {
+    let title: String
+    let bar: BarState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Spacer()
+                Text(bar.primaryLabel).font(.caption.monospacedDigit().weight(.semibold))
+                    .contentTransition(.numericText())
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.secondary.opacity(0.15))
+                    Capsule().fill(LimitsSection.barColor(for: bar.fraction).gradient)
+                        .frame(width: max(4, geo.size.width * bar.fraction))
+                }
+            }
+            .frame(height: 8)
+            if let detail = bar.detailLabel {
+                Text(detail).font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+    }
 }

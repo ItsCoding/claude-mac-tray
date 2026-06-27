@@ -361,6 +361,60 @@ final class UsageStore {
         return total / Double(sessions.count) / 60
     }
 
+    // MARK: - Forecast
+
+    /// Hourly cost over the last 24 hours, one entry per hour (empty hours included as 0).
+    func last24hHourlyCost() -> [(hour: Date, cost: Double)] {
+        let cal = Calendar.current
+        let now = Date()
+        let start = now.addingTimeInterval(-24 * 3600)
+        let interval = DateInterval(start: start, end: now.addingTimeInterval(60))
+        var byHour: [Date: Double] = [:]
+        for msg in messages(in: interval) {
+            let bucket = cal.dateInterval(of: .hour, for: msg.timestamp)?.start ?? msg.timestamp
+            let tc = TokenCount(input: msg.inputTokens, output: msg.outputTokens,
+                                cacheRead: msg.cacheReadTokens, cacheWrite: msg.cacheWriteTokens)
+            byHour[bucket, default: 0] += ModelPricing.cost(for: msg.model ?? "", tokens: tc) ?? 0
+        }
+        var result: [(hour: Date, cost: Double)] = []
+        var cursor = cal.dateInterval(of: .hour, for: start)?.start ?? start
+        let endHour = cal.dateInterval(of: .hour, for: now)?.start ?? now
+        while cursor <= endHour {
+            result.append((hour: cursor, cost: byHour[cursor] ?? 0))
+            cursor = cursor.addingTimeInterval(3600)
+        }
+        return result
+    }
+
+    /// Mean hourly cost over the last 24 hours (only active hours).
+    func hourlyBurnRate() -> Double? {
+        let hours = last24hHourlyCost()
+        let active = hours.filter { $0.cost > 0 }
+        guard !active.isEmpty else { return nil }
+        return active.reduce(0) { $0 + $1.cost } / Double(active.count)
+    }
+
+    /// Hours remaining before a rate window hits 100%, extrapolating from how fast
+    /// it filled since reset. Returns nil when data is too sparse to extrapolate.
+    func forecastRunway() -> (fiveHour: Double?, weekly: Double?) {
+        let snap = snapshots.freshest
+
+        func runway(window: RateWindow?, windowDurationH: Double) -> Double? {
+            guard let w = window, w.usedPercentage > 2 else { return nil }
+            let timeLeft = max(0, w.resetsAt.timeIntervalSinceNow / 3600)
+            let elapsed = windowDurationH - timeLeft
+            guard elapsed > 0.1 else { return nil }
+            let ratePerHour = (w.usedPercentage / 100.0) / elapsed
+            guard ratePerHour > 0 else { return nil }
+            return (1.0 - w.usedPercentage / 100.0) / ratePerHour
+        }
+
+        return (
+            fiveHour: runway(window: snap?.fiveHour, windowDurationH: 5.0),
+            weekly:   runway(window: snap?.sevenDay,  windowDurationH: 7 * 24.0)
+        )
+    }
+
     private func truncate(_ date: Date, to unit: BucketUnit, cal: Calendar) -> Date {
         switch unit {
         case .hour: return cal.dateInterval(of: .hour, for: date)?.start ?? date

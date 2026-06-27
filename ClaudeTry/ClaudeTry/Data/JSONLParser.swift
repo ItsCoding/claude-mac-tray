@@ -29,7 +29,7 @@ actor JSONLParser {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         let dir = caches.appendingPathComponent("ClaudeTry")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("sessions_v2.json")
+        return dir.appendingPathComponent("sessions_v3.json")
     }
 
     private func loadDiskCache() {
@@ -111,6 +111,7 @@ actor JSONLParser {
         var messages: [ClaudeMessage] = []
         var memoryEvents: [MemoryEvent] = []
         var seenMemoryPaths = Set<String>()
+        var seenMessageIDs = Set<String>()
         var resolvedCwd: String?
         func parseDate(_ s: String) -> Date? { isoFractional.date(from: s) ?? isoWhole.date(from: s) }
 
@@ -133,6 +134,12 @@ actor JSONLParser {
 
             let model = messageDict["model"] as? String
             let messageID = messageDict["id"] as? String
+            // Each assistant message appears twice in the JSONL (streamed partial + final).
+            // Deduplicate by message id so we don't double-count tokens/cost.
+            if let mid = messageID, !mid.isEmpty {
+                if seenMessageIDs.contains(mid) { continue }
+                seenMessageIDs.insert(mid)
+            }
             let isBedrock = messageID?.hasPrefix("msg_bdrk_") == true
             let usage = messageDict["usage"] as? [String: Any]
             let inputTokens      = usage?["input_tokens"] as? Int ?? 0
