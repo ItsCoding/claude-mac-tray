@@ -27,6 +27,7 @@ final class UsageStore {
     var sessions: [Session] = []
     private(set) var isLoaded = false
     private var timer: Timer?
+    private var pricingTimer: Timer?
     private let parser = JSONLParser()
     private let snapshots: SnapshotStore
     private let config: AppConfig
@@ -68,6 +69,13 @@ final class UsageStore {
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refreshAsync() }
+        }
+        // ClaudeTry runs continuously as a menu-bar app, so a launch-time-only
+        // pricing fetch can go stale for days. Re-check daily so newly priced
+        // models (e.g. a model that just launched) pick up real rates without
+        // requiring a restart.
+        pricingTimer = Timer.scheduledTimer(withTimeInterval: 86_400, repeats: true) { _ in
+            Task { @MainActor in await ModelPricing.refreshFromRemote() }
         }
     }
 

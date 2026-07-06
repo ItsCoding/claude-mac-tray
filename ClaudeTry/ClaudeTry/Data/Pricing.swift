@@ -71,6 +71,9 @@ extension PricingCatalog {
         // Haiku 4.5: $1 / $5 in/out
         "claude-haiku-4-5":           PricingEntry(inputPerToken: 1e-6, outputPerToken: 5e-6, cacheCreationPerToken: 1.25e-6, cacheReadPerToken: 0.1e-6),
         "claude-haiku-4-5-20251001":  PricingEntry(inputPerToken: 1e-6, outputPerToken: 5e-6, cacheCreationPerToken: 1.25e-6, cacheReadPerToken: 0.1e-6),
+        // Sonnet 5: just released, no published pricing yet — treat as free
+        // rather than "unknown model" until LiteLLM/Anthropic publish real rates.
+        "claude-sonnet-5": PricingEntry(inputPerToken: 0, outputPerToken: 0, cacheCreationPerToken: 0, cacheReadPerToken: 0),
     ])
 }
 
@@ -89,10 +92,13 @@ enum PricingLoader {
     }
 
     /// Synchronous best-effort: disk cache if present and parseable, else embedded.
+    /// Cached/remote entries win over embedded on key conflicts, but embedded
+    /// placeholders (e.g. brand-new models LiteLLM hasn't priced yet) still
+    /// apply until the real entry shows up under that same model id.
     static func loadCachedOrEmbedded() -> PricingCatalog {
         if let url = cacheFileURL, let data = try? Data(contentsOf: url),
            let catalog = decode(data) {
-            return catalog
+            return merged(withEmbedded: catalog)
         }
         return .embedded
     }
@@ -105,10 +111,14 @@ enum PricingLoader {
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   let catalog = decode(data), !catalog.entries.isEmpty else { return nil }
             if let url = cacheFileURL { try? data.write(to: url) }
-            return catalog
+            return merged(withEmbedded: catalog)
         } catch {
             return nil
         }
+    }
+
+    private static func merged(withEmbedded catalog: PricingCatalog) -> PricingCatalog {
+        PricingCatalog(entries: PricingCatalog.embedded.entries.merging(catalog.entries) { _, remote in remote })
     }
 
     /// Parse the LiteLLM JSON (a flat map of model → cost fields), keeping only

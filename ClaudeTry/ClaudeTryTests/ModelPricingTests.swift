@@ -15,6 +15,12 @@ final class ModelPricingTests: XCTestCase {
         XCTAssertNil(ModelPricing.cost(for: "some-unknown-model-xyz", tokens: tokens))
     }
 
+    func test_cost_sonnet5_isFreeUntilRealPricingLands() {
+        let tokens = TokenCount(input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000, cacheWrite: 1_000_000)
+        XCTAssertEqual(ModelPricing.cost(for: "claude-sonnet-5", tokens: tokens), 0)
+        XCTAssertEqual(ModelPricing.cost(for: "claude-sonnet-5-20260115", tokens: tokens), 0)
+    }
+
     func test_cost_includesCacheTokens() {
         // 1M cache read tokens at $0.30/M = $0.30
         let tokens = TokenCount(input: 0, output: 0, cacheRead: 1_000_000, cacheWrite: 0)
