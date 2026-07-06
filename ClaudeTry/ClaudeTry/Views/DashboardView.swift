@@ -472,7 +472,14 @@ struct DashboardView: View {
     // MARK: Page 2 — Heatmap
 
     private var heatmapInterval: DateInterval {
-        guard range.mode == .today else { return interval }
+        guard range.mode == .today else {
+            // `interval.start` can be `.distantPast` (All Time) or an arbitrary
+            // custom date — clamp to the earliest real session so the day-by-day
+            // loop below never walks centuries of empty days.
+            let earliest = store.sessions.map(\.startTime).min() ?? interval.start
+            let start = min(max(interval.start, earliest), interval.end)
+            return DateInterval(start: start, end: interval.end)
+        }
         let cal = Calendar.current
         let start = cal.date(byAdding: .day, value: -29, to: cal.startOfDay(for: Date()))!
         return DateInterval(start: start, end: Date())
