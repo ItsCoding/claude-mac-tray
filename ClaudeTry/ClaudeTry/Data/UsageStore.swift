@@ -130,9 +130,7 @@ final class UsageStore {
 
     func totalCost(in interval: DateInterval) -> Double? {
         messages(in: interval).reduce(0.0) { acc, m in
-            let tc = TokenCount(input: m.inputTokens, output: m.outputTokens,
-                                cacheRead: m.cacheReadTokens, cacheWrite: m.cacheWriteTokens)
-            return acc + (ModelPricing.cost(for: m.model ?? "", tokens: tc) ?? 0)
+            acc + (ModelPricing.cost(for: m) ?? 0)
         }
     }
 
@@ -195,7 +193,7 @@ final class UsageStore {
                 byModel[short] = io
                 tokens[bucket] = byModel
                 var byCost = cost[bucket] ?? [:]
-                byCost[short, default: 0] += ModelPricing.cost(for: raw, tokens: tc) ?? 0
+                byCost[short, default: 0] += ModelPricing.cost(for: msg) ?? 0
                 cost[bucket] = byCost
             }
         }
@@ -232,7 +230,7 @@ final class UsageStore {
                 byProfile[name] = io
                 tokens[bucket] = byProfile
                 var byCost = cost[bucket] ?? [:]
-                byCost[name, default: 0] += ModelPricing.cost(for: msg.model ?? "", tokens: tc) ?? 0
+                byCost[name, default: 0] += ModelPricing.cost(for: msg) ?? 0
                 cost[bucket] = byCost
             }
         }
@@ -341,7 +339,7 @@ final class UsageStore {
     func cacheSavings(in interval: DateInterval) -> Double {
         var saved = 0.0
         for session in filteredSessions(in: interval) {
-            for msg in session.messages where msg.cacheReadTokens > 0 {
+            for msg in session.messages where msg.cacheReadTokens > 0 && !msg.isOpenCode {
                 guard let model = msg.model else { continue }
                 let full = ModelPricing.cost(for: model, tokens: TokenCount(input: msg.cacheReadTokens, output: 0, cacheRead: 0, cacheWrite: 0)) ?? 0
                 let actual = ModelPricing.cost(for: model, tokens: TokenCount(input: 0, output: 0, cacheRead: msg.cacheReadTokens, cacheWrite: 0)) ?? 0
@@ -380,9 +378,7 @@ final class UsageStore {
         var byHour: [Date: Double] = [:]
         for msg in messages(in: interval) {
             let bucket = cal.dateInterval(of: .hour, for: msg.timestamp)?.start ?? msg.timestamp
-            let tc = TokenCount(input: msg.inputTokens, output: msg.outputTokens,
-                                cacheRead: msg.cacheReadTokens, cacheWrite: msg.cacheWriteTokens)
-            byHour[bucket, default: 0] += ModelPricing.cost(for: msg.model ?? "", tokens: tc) ?? 0
+            byHour[bucket, default: 0] += ModelPricing.cost(for: msg) ?? 0
         }
         var result: [(hour: Date, cost: Double)] = []
         var cursor = cal.dateInterval(of: .hour, for: start)?.start ?? start

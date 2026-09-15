@@ -20,8 +20,19 @@ enum ModelPricing {
         catalog.cost(forModel: modelID, tokens: tokens)
     }
 
-    /// USD cost for a whole session. Unknown-model messages contribute 0.
+    /// USD cost for a single message. OpenCode messages carry their own
+    /// precomputed cost (OpenCode covers providers/models this Claude-only
+    /// catalog has no pricing data for) and always win over a catalog lookup.
+    static func cost(for message: ClaudeMessage) -> Double? {
+        if message.isOpenCode { return message.precomputedCostUSD ?? 0 }
+        let tokens = TokenCount(input: message.inputTokens, output: message.outputTokens,
+                                cacheRead: message.cacheReadTokens, cacheWrite: message.cacheWriteTokens)
+        return cost(for: message.model ?? "", tokens: tokens)
+    }
+
+    /// USD cost for a whole session — sums per-message cost so mixed
+    /// Claude Code + OpenCode sessions total correctly.
     static func cost(for session: Session) -> Double? {
-        catalog.cost(forSession: session)
+        session.messages.reduce(0.0) { $0 + (cost(for: $1) ?? 0) }
     }
 }

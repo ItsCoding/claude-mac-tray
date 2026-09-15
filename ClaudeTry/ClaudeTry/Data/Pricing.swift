@@ -26,17 +26,6 @@ struct PricingCatalog {
              + Double(tokens.cacheWrite) * e.cacheCreationPerToken
     }
 
-    /// Sum cost across a session. Messages with unknown models contribute 0
-    /// rather than poisoning the whole total — most ids resolve via the
-    /// embedded snapshot, so this stays accurate in practice.
-    func cost(forSession session: Session) -> Double {
-        session.messages.reduce(0.0) { acc, msg in
-            let tokens = TokenCount(input: msg.inputTokens, output: msg.outputTokens,
-                                    cacheRead: msg.cacheReadTokens, cacheWrite: msg.cacheWriteTokens)
-            return acc + (cost(forModel: msg.model ?? "", tokens: tokens) ?? 0)
-        }
-    }
-
     private func entry(for modelID: String) -> PricingEntry? {
         if let exact = entries[modelID] { return exact }
         // LiteLLM sometimes prefixes provider, e.g. "anthropic/claude-...".
