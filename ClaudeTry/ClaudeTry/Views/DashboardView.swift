@@ -304,7 +304,7 @@ struct DashboardView: View {
             ForEach(breakdown, id: \.profile.rawValue) { item in
                 HStack(spacing: 5) {
                     Circle()
-                        .fill(item.profile == .anthropic ? Color.indigo : Color.orange)
+                        .fill(ModelStyle.color(item.profile.rawValue))
                         .frame(width: 6, height: 6)
                     Text(item.profile.rawValue).font(.caption2).foregroundStyle(.secondary)
                     Text(String(format: "$%.2f", item.cost))

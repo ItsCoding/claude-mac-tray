@@ -4,7 +4,7 @@ import SwiftUI
 /// the same model. System colors keep it native rather than a rainbow.
 enum ModelStyle {
     /// Stable legend/stack order (most expensive → cheapest, then synthetic, then profiles).
-    static let order = ["Opus", "Sonnet", "Haiku", "Fable", "Synthetic", "Claude.ai", "Bedrock", "Added", "Removed"]
+    static let order = ["Opus", "Sonnet", "Haiku", "Fable", "Synthetic", "Claude.ai", "Bedrock", "OpenCode", "Added", "Removed"]
 
     static func color(_ model: String) -> Color {
         switch model {
@@ -15,6 +15,7 @@ enum ModelStyle {
         case "Synthetic": return .gray
         case "Claude.ai": return .indigo
         case "Bedrock":   return .green
+        case "OpenCode":  return .cyan
         case "Added":     return .green
         case "Removed":   return .red
         default:          return .gray
