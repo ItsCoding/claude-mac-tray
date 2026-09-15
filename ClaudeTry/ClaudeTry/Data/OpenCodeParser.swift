@@ -83,6 +83,7 @@ actor OpenCodeParser {
                 }
                 toolCalls.append(ToolCall(name: part.tool, arguments: args))
 
+                // Read from the original `part.args`, not locally-stripped `args`; filePath is never stripped.
                 if let path = part.args["filePath"], path.contains("/memory/") {
                     let isRead = part.tool == "read"
                     let isFirstSeen = !seenMemoryPaths.contains(path)

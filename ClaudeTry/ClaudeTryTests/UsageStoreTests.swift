@@ -60,6 +60,26 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(tools.first?.count, 1)
     }
 
+    @MainActor func test_profileBreakdown_ordersAllProfilesDeterministically() {
+        let now = Date()
+        func session(isBedrock: Bool = false, isOpenCode: Bool = false) -> Session {
+            let message = ClaudeMessage(timestamp: now, role: "assistant", model: "claude-sonnet-4-6",
+                                        inputTokens: 1, outputTokens: 0,
+                                        cacheReadTokens: 0, cacheWriteTokens: 0,
+                                        toolCalls: [], projectPath: "/p", isBedrock: isBedrock,
+                                        linesAdded: 0, linesRemoved: 0, isOpenCode: isOpenCode,
+                                        precomputedCostUSD: isOpenCode ? 0 : nil)
+            return Session(id: UUID(), projectPath: "/p", startTime: now, endTime: now,
+                           messages: [message])
+        }
+
+        let store = UsageStore()
+        store.sessions = [session(isOpenCode: true), session(isBedrock: true), session()]
+
+        let breakdown = try! XCTUnwrap(store.profileBreakdown(in: DateInterval(start: .distantPast, end: .distantFuture)))
+        XCTAssertEqual(breakdown.map(\.profile), [.anthropic, .bedrock, .opencode])
+    }
+
     @MainActor func test_limits_bedrockMode_whenNoSnapshots() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("us-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

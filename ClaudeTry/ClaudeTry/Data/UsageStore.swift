@@ -151,7 +151,12 @@ final class UsageStore {
         guard data.count > 1 else { return nil }
         return data
             .map { (profile: $0.key, cost: $0.value.cost, sessions: $0.value.sessions) }
-            .sorted { $0.profile == .anthropic && $1.profile != .anthropic }
+            .sorted {
+                let order = ModelStyle.order
+                let i0 = order.firstIndex(of: $0.profile.rawValue) ?? order.count
+                let i1 = order.firstIndex(of: $1.profile.rawValue) ?? order.count
+                return i0 < i1
+            }
     }
 
     /// Granularity for charts over this range, driven by interval duration so
