@@ -80,4 +80,76 @@ final class OpenCodeParserTests: XCTestCase {
         let result = await parser.scan(dbPath: dbURL)
         XCTAssertTrue(result.sessions.isEmpty)
     }
+
+    private let baseAssistantData = #"{"role":"assistant","cost":0.1,"tokens":{"input":10,"output":10,"reasoning":0,"cache":{"read":0,"write":0}},"modelID":"claude-sonnet-5","path":{"cwd":"/p"},"time":{"created":1700000000000}}"#
+
+    func test_scan_editWithDiffMetadata_usesExactLineCounts() async {
+        makeDB(
+            messages: [(id: "msg_1", sessionID: "ses_1", data: baseAssistantData)],
+            parts: [(messageID: "msg_1", data: #"{"type":"tool","tool":"edit","state":{"input":{"filePath":"/a.txt","oldString":"x","newString":"y"},"metadata":{"diff":{"additions":3,"deletions":1}}}}"#)]
+        )
+        let result = await parser.scan(dbPath: dbURL)
+        let session = result.sessions[0]
+        XCTAssertEqual(session.linesAdded, 3, "must use diff metadata, not oldString/newString line counts (1 each)")
+        XCTAssertEqual(session.linesRemoved, 1)
+    }
+
+    func test_scan_editWithoutDiffMetadata_fallsBackToCountingStrings() async {
+        makeDB(
+            messages: [(id: "msg_1", sessionID: "ses_1", data: baseAssistantData)],
+            parts: [(messageID: "msg_1", data: #"{"type":"tool","tool":"edit","state":{"input":{"filePath":"/a.txt","oldString":"line1\nline2","newString":"line1\nline2\nline3"}}}"#)]
+        )
+        let result = await parser.scan(dbPath: dbURL)
+        let session = result.sessions[0]
+        XCTAssertEqual(session.linesRemoved, 2)
+        XCTAssertEqual(session.linesAdded, 3)
+    }
+
+    func test_scan_writeTool_countsContentLinesAsAdded() async {
+        makeDB(
+            messages: [(id: "msg_1", sessionID: "ses_1", data: baseAssistantData)],
+            parts: [(messageID: "msg_1", data: #"{"type":"tool","tool":"write","state":{"input":{"filePath":"/new.txt","content":"a\nb\nc"}}}"#)]
+        )
+        let result = await parser.scan(dbPath: dbURL)
+        let session = result.sessions[0]
+        XCTAssertEqual(session.linesAdded, 3)
+        XCTAssertEqual(session.linesRemoved, 0)
+    }
+
+    func test_scan_toolCall_isRecordedWithNativeToolName() async {
+        makeDB(
+            messages: [(id: "msg_1", sessionID: "ses_1", data: baseAssistantData)],
+            parts: [(messageID: "msg_1", data: #"{"type":"tool","tool":"bash","state":{"input":{"command":"ls"}}}"#)]
+        )
+        let result = await parser.scan(dbPath: dbURL)
+        XCTAssertEqual(result.sessions[0].toolCallCounts["bash"], 1, "OpenCode's native lowercase tool name, not aliased to Claude Code's casing")
+    }
+
+    func test_scan_memoryPathInFilePath_extractsReadEvent() async {
+        makeDB(
+            messages: [(id: "msg_1", sessionID: "ses_1", data: baseAssistantData)],
+            parts: [(messageID: "msg_1", data: #"{"type":"tool","tool":"read","state":{"input":{"filePath":"/p/memory/notes.md"}}}"#)]
+        )
+        let result = await parser.scan(dbPath: dbURL)
+        XCTAssertEqual(result.memoryEvents.count, 1)
+        XCTAssertEqual(result.memoryEvents[0].operation, .read)
+        XCTAssertTrue(result.memoryEvents[0].memoryFilePath.contains("notes.md"))
+    }
+
+    func test_scan_memoryPathFirstWriteThenSecondWrite_createThenWrite() async {
+        makeDB(
+            messages: [
+                (id: "msg_1", sessionID: "ses_1", data: baseAssistantData),
+                (id: "msg_2", sessionID: "ses_1", data: baseAssistantData),
+            ],
+            parts: [
+                (messageID: "msg_1", data: #"{"type":"tool","tool":"write","state":{"input":{"filePath":"/p/memory/notes.md","content":"v1"}}}"#),
+                (messageID: "msg_2", data: #"{"type":"tool","tool":"write","state":{"input":{"filePath":"/p/memory/notes.md","content":"v2"}}}"#),
+            ]
+        )
+        let result = await parser.scan(dbPath: dbURL)
+        XCTAssertEqual(result.memoryEvents.count, 2)
+        XCTAssertEqual(result.memoryEvents[0].operation, .create)
+        XCTAssertEqual(result.memoryEvents[1].operation, .write)
+    }
 }

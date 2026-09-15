@@ -25,6 +25,16 @@ actor OpenCodeParser {
         let projectPath: String
     }
 
+    /// One `part` row of type "tool". `args` mirrors the shape `JSONLParser`
+    /// builds for Claude Code tool calls — every string-valued input field,
+    /// keyed by OpenCode's own field names (e.g. "filePath", not "file_path").
+    private struct RawPart {
+        let tool: String
+        var args: [String: String]
+        let diffAdditions: Int?
+        let diffDeletions: Int?
+    }
+
     func scan(dbPath: URL) async -> (sessions: [Session], memoryEvents: [MemoryEvent]) {
         guard FileManager.default.fileExists(atPath: dbPath.path) else { return ([], []) }
 
@@ -36,15 +46,59 @@ actor OpenCodeParser {
         defer { sqlite3_close(db) }
 
         let rawMessages = readMessages(db)
+        let partsByMessage = readParts(db)
 
         var messagesBySession: [String: [ClaudeMessage]] = [:]
+        var memoryEvents: [MemoryEvent] = []
+        var seenMemoryPaths = Set<String>()
+
         for raw in rawMessages {
+            var toolCalls: [ToolCall] = []
+            var linesAdded = 0
+            var linesRemoved = 0
+
+            for part in partsByMessage[raw.id] ?? [] {
+                var args = part.args
+
+                // Strip large text fields out of `args` after using them for
+                // line counting — mirrors JSONLParser's handling of Claude
+                // Code's Edit/Write tool calls, avoids stuffing whole file
+                // diffs into every ToolCall.arguments dict.
+                switch part.tool {
+                case "edit":
+                    if let add = part.diffAdditions, let del = part.diffDeletions {
+                        linesAdded += add
+                        linesRemoved += del
+                    } else {
+                        if let old = args["oldString"] { linesRemoved += old.components(separatedBy: "\n").count }
+                        if let new = args["newString"] { linesAdded += new.components(separatedBy: "\n").count }
+                    }
+                    args["oldString"] = nil
+                    args["newString"] = nil
+                case "write":
+                    if let content = args["content"] { linesAdded += content.components(separatedBy: "\n").count }
+                    args["content"] = nil
+                default:
+                    break
+                }
+                toolCalls.append(ToolCall(name: part.tool, arguments: args))
+
+                if let path = part.args["filePath"], path.contains("/memory/") {
+                    let isRead = part.tool == "read"
+                    let isFirstSeen = !seenMemoryPaths.contains(path)
+                    if !isRead { seenMemoryPaths.insert(path) }
+                    let op: MemoryOperation = isRead ? .read : (isFirstSeen ? .create : .write)
+                    memoryEvents.append(MemoryEvent(id: UUID(), timestamp: raw.timestamp,
+                                                     projectPath: raw.projectPath, memoryFilePath: path, operation: op))
+                }
+            }
+
             let message = ClaudeMessage(
                 timestamp: raw.timestamp, role: "assistant", model: raw.model,
                 inputTokens: raw.inputTokens, outputTokens: raw.outputTokens,
                 cacheReadTokens: raw.cacheReadTokens, cacheWriteTokens: raw.cacheWriteTokens,
-                toolCalls: [], projectPath: raw.projectPath,
-                isBedrock: false, linesAdded: 0, linesRemoved: 0,
+                toolCalls: toolCalls, projectPath: raw.projectPath,
+                isBedrock: false, linesAdded: linesAdded, linesRemoved: linesRemoved,
                 isOpenCode: true, precomputedCostUSD: raw.cost
             )
             messagesBySession[raw.sessionID, default: []].append(message)
@@ -55,7 +109,7 @@ actor OpenCodeParser {
             return Session(id: UUID(), projectPath: msgs[0].projectPath, startTime: start, endTime: end, messages: msgs)
         }
 
-        return (sessions, [])
+        return (sessions, memoryEvents)
     }
 
     private func readMessages(_ db: OpaquePointer) -> [RawMessage] {
@@ -88,6 +142,37 @@ actor OpenCodeParser {
                 cacheWriteTokens: cache?["write"] as? Int ?? 0,
                 cost: json["cost"] as? Double ?? 0,
                 projectPath: cwd ?? "unknown"
+            ))
+        }
+        return result
+    }
+
+    private func readParts(_ db: OpaquePointer) -> [String: [RawPart]] {
+        let sql = "SELECT message_id, data FROM part ORDER BY message_id"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let stmt else { return [:] }
+        defer { sqlite3_finalize(stmt) }
+
+        var result: [String: [RawPart]] = [:]
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let midC = sqlite3_column_text(stmt, 0), let dataC = sqlite3_column_text(stmt, 1) else { continue }
+            guard let json = decodeJSON(String(cString: dataC)),
+                  json["type"] as? String == "tool",
+                  let tool = json["tool"] as? String,
+                  let state = json["state"] as? [String: Any]
+            else { continue }
+
+            var args: [String: String] = [:]
+            if let input = state["input"] as? [String: Any] {
+                for (k, v) in input { args[k] = "\(v)" }
+            }
+            let diff = (state["metadata"] as? [String: Any])?["diff"] as? [String: Any]
+
+            let messageID = String(cString: midC)
+            result[messageID, default: []].append(RawPart(
+                tool: tool, args: args,
+                diffAdditions: diff?["additions"] as? Int,
+                diffDeletions: diff?["deletions"] as? Int
             ))
         }
         return result
