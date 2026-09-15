@@ -29,6 +29,7 @@ final class UsageStore {
     private var timer: Timer?
     private var pricingTimer: Timer?
     private let parser = JSONLParser()
+    private let openCodeParser = OpenCodeParser()
     private let snapshots: SnapshotStore
     private let config: AppConfig
 
@@ -84,10 +85,14 @@ final class UsageStore {
     }
 
     private func refreshAsync() async {
-        let rootURL = FileManager.default.homeDirectoryForCurrentUser
+        let claudeRoot = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/projects")
-        let result = await parser.scan(rootURL: rootURL)
-        sessions = result.sessions.sorted { $0.startTime > $1.startTime }
+        let openCodeDB = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/share/opencode/opencode.db")
+        async let claudeResult = parser.scan(rootURL: claudeRoot)
+        async let openCodeResult = openCodeParser.scan(dbPath: openCodeDB)
+        let (claude, opencode) = await (claudeResult, openCodeResult)
+        sessions = (claude.sessions + opencode.sessions).sorted { $0.startTime > $1.startTime }
         snapshots.reload()
         isLoaded = true
     }
