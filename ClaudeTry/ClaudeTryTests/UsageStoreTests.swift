@@ -14,7 +14,8 @@ final class UsageStoreTests: XCTestCase {
                                   inputTokens: tokens, outputTokens: 0,
                                   cacheReadTokens: 0, cacheWriteTokens: 0,
                                   toolCalls: tc, projectPath: "/p", isBedrock: false,
-                                  linesAdded: 0, linesRemoved: 0)
+                                  linesAdded: 0, linesRemoved: 0,
+                                  isOpenCode: false, precomputedCostUSD: nil)
         }
 
         return [

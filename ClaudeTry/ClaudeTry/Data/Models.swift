@@ -79,6 +79,7 @@ enum BucketUnit {
 enum ClaudeProfile: String, CaseIterable {
     case anthropic = "Claude.ai"
     case bedrock   = "Bedrock"
+    case opencode  = "OpenCode"
 }
 
 /// Friendly model name for legends. Collapses dated/undated ids to one family.
@@ -138,6 +139,16 @@ struct ClaudeMessage: Codable {
     let isBedrock: Bool
     let linesAdded: Int
     let linesRemoved: Int
+    /// True for messages sourced from OpenCode's SQLite store rather than
+    /// Claude Code's JSONL transcripts. Drives `Session.profile` and tells
+    /// `ModelPricing` to trust `precomputedCostUSD` instead of recomputing
+    /// from `model` (OpenCode covers providers/models Claude's pricing
+    /// catalog has no data for). No default value — see plan's Global
+    /// Constraints on why Codable defaults are a footgun here.
+    let isOpenCode: Bool
+    /// USD cost OpenCode itself computed for this message. Only meaningful
+    /// when `isOpenCode` is true; nil for Claude Code messages.
+    let precomputedCostUSD: Double?
 }
 
 struct Session: Identifiable {
@@ -191,7 +202,8 @@ struct Session: Identifiable {
     }
 
     var profile: ClaudeProfile {
-        messages.contains { $0.isBedrock } ? .bedrock : .anthropic
+        if messages.contains(where: { $0.isOpenCode }) { return .opencode }
+        return messages.contains { $0.isBedrock } ? .bedrock : .anthropic
     }
 }
 

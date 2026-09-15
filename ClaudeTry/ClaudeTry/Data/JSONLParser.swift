@@ -29,7 +29,7 @@ actor JSONLParser {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         let dir = caches.appendingPathComponent("ClaudeTry")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("sessions_v3.json")
+        return dir.appendingPathComponent("sessions_v4.json")
     }
 
     private func loadDiskCache() {
@@ -208,7 +208,9 @@ actor JSONLParser {
                 projectPath: resolvedCwd ?? fallbackPath,
                 isBedrock: isBedrock,
                 linesAdded: msgLinesAdded,
-                linesRemoved: msgLinesRemoved
+                linesRemoved: msgLinesRemoved,
+                isOpenCode: false,
+                precomputedCostUSD: nil
             ))
         }
 
