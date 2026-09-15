@@ -8,8 +8,10 @@ final class JSONLParserTests: XCTestCase {
     override func setUp() {
         super.setUp()
         parser = JSONLParser()
+        // Xcode 16 file-system-synchronized groups copy loose resources flat
+        // into the test bundle's Resources/ (no "Fixtures" subfolder), unlike
+        // a classic PBXGroup with an explicit folder reference.
         fixturesURL = Bundle(for: type(of: self)).resourceURL!
-            .appendingPathComponent("Fixtures")
     }
 
     func test_parse_simpleSession_extractsMessages() async throws {
