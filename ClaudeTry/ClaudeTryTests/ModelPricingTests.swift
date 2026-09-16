@@ -40,13 +40,63 @@ final class ModelPricingTests: XCTestCase {
         XCTAssertEqual(ModelPricing.cost(for: msg), 4.2)
     }
 
-    func test_cost_openCodeMessage_missingPrecomputedCost_defaultsToZero() {
-        let msg = ClaudeMessage(timestamp: Date(), role: "assistant", model: "gpt-5.6-luna",
+    /// Uses a model name absent from both the embedded catalog and any real
+    /// entries, and pins the catalog to the Claude-only embedded snapshot, so
+    /// this stays deterministic regardless of what's cached on disk (unlike
+    /// "gpt-5.6-luna", which — after the catalog fallback below — legitimately
+    /// resolves to a real, nonzero cost once real GPT pricing is cached).
+    func test_cost_openCodeMessage_missingPrecomputedCostAndUnknownModel_defaultsToZero() {
+        let saved = ModelPricing.catalog
+        defer { ModelPricing.catalog = saved }
+        ModelPricing.catalog = .embedded
+
+        let msg = ClaudeMessage(timestamp: Date(), role: "assistant", model: "totally-unpriced-model-xyz",
                                  inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0,
                                  toolCalls: [], projectPath: "/p", isBedrock: false,
                                  linesAdded: 0, linesRemoved: 0,
                                  isOpenCode: true, precomputedCostUSD: nil)
         XCTAssertEqual(ModelPricing.cost(for: msg), 0)
+    }
+
+    /// Root-cause regression test: OpenCode reports a real, honest `0` cost
+    /// for models its own provider config has no pricing metadata for (e.g. a
+    /// custom internal gateway), even though real tokens were spent. When
+    /// ClaudeTry's own catalog *does* know that model's price, it must use it
+    /// instead of silently displaying $0.
+    func test_cost_openCodeMessage_zeroCostFromOpenCode_fallsBackToCatalogWhenKnown() {
+        let saved = ModelPricing.catalog
+        defer { ModelPricing.catalog = saved }
+        ModelPricing.catalog = PricingCatalog(entries: [
+            "gpt-6-astra": PricingEntry(inputPerToken: 10e-6, outputPerToken: 50e-6,
+                                         cacheCreationPerToken: 12.5e-6, cacheReadPerToken: 1e-6)
+        ])
+
+        let msg = ClaudeMessage(timestamp: Date(), role: "assistant", model: "gpt-6-astra",
+                                 inputTokens: 1000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 0,
+                                 toolCalls: [], projectPath: "/p", isBedrock: false,
+                                 linesAdded: 0, linesRemoved: 0,
+                                 isOpenCode: true, precomputedCostUSD: 0) // OpenCode's own honest-but-unpriced 0
+        // 1000 * 10e-6 + 500 * 50e-6 = 0.01 + 0.025 = 0.035
+        XCTAssertEqual(ModelPricing.cost(for: msg)!, 0.035, accuracy: 0.0000001)
+    }
+
+    /// A nonzero cost OpenCode DOES know (e.g. via a provider with real
+    /// pricing) must never be overridden by a catalog estimate, even if the
+    /// catalog also has an entry for that model.
+    func test_cost_openCodeMessage_nonzeroPrecomputedCost_neverOverriddenByCatalog() {
+        let saved = ModelPricing.catalog
+        defer { ModelPricing.catalog = saved }
+        ModelPricing.catalog = PricingCatalog(entries: [
+            "gpt-6-astra": PricingEntry(inputPerToken: 10e-6, outputPerToken: 50e-6,
+                                         cacheCreationPerToken: 12.5e-6, cacheReadPerToken: 1e-6)
+        ])
+
+        let msg = ClaudeMessage(timestamp: Date(), role: "assistant", model: "gpt-6-astra",
+                                 inputTokens: 1000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 0,
+                                 toolCalls: [], projectPath: "/p", isBedrock: false,
+                                 linesAdded: 0, linesRemoved: 0,
+                                 isOpenCode: true, precomputedCostUSD: 9.99) // OpenCode's own real, nonzero cost
+        XCTAssertEqual(ModelPricing.cost(for: msg), 9.99)
     }
 
     func test_cost_claudeCodeMessage_usesModelCatalog_ignoresPrecomputedCost() {

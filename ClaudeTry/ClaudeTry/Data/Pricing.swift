@@ -110,14 +110,16 @@ enum PricingLoader {
         PricingCatalog(entries: PricingCatalog.embedded.entries.merging(catalog.entries) { _, remote in remote })
     }
 
-    /// Parse the LiteLLM JSON (a flat map of model → cost fields), keeping only
-    /// Anthropic Claude entries that carry input/output per-token costs.
+    /// Parse the LiteLLM JSON (a flat map of model → cost fields). Keeps any
+    /// entry that carries input/output per-token costs — not just Claude
+    /// models. OpenCode sessions can carry any model name (GPT, etc.), and
+    /// this catalog is the fallback for when OpenCode's own per-message cost
+    /// is a real `0` because its own provider config has no pricing data.
     private static func decode(_ data: Data) -> PricingCatalog? {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         var entries: [String: PricingEntry] = [:]
         for (key, value) in raw {
-            guard key.contains("claude"),
-                  let obj = value as? [String: Any],
+            guard let obj = value as? [String: Any],
                   let input = obj["input_cost_per_token"] as? Double,
                   let output = obj["output_cost_per_token"] as? Double
             else { continue }
