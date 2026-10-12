@@ -61,6 +61,11 @@ struct DashboardView: View {
             Image(systemName: "sparkle").font(.callout).foregroundStyle(.indigo)
             Text("Claude Usage").font(.headline)
             Spacer()
+            Button { AnalyticsWindowController.shared.show(store: store) } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right").font(.callout).foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Open analytics window")
             Button { showingRange = true } label: {
                 Image(systemName: "calendar").font(.callout).foregroundStyle(.secondary)
             }

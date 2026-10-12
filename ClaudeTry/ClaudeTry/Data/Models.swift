@@ -81,14 +81,17 @@ enum ClaudeProfile: String, CaseIterable {
     case bedrock   = "Bedrock"
 }
 
-/// Friendly model name for legends. Collapses dated/undated ids to one family.
+/// Friendly model name for legends, with version: "claude-opus-4-1-20250805" -> "Opus 4.1",
+/// "claude-3-7-sonnet-20250219" -> "Sonnet 3.7", "claude-sonnet-5" -> "Sonnet 5".
+/// Unknown ids are returned unchanged.
 func shortModelName(_ model: String) -> String {
     if model == "<synthetic>" || model.isEmpty { return "Synthetic" }
-    if model.contains("opus")   { return "Opus" }
-    if model.contains("sonnet") { return "Sonnet" }
-    if model.contains("haiku")  { return "Haiku" }
-    if model.contains("fable")  { return "Fable" }
-    return model
+    guard let family = ["Opus", "Sonnet", "Haiku", "Fable"].first(where: { model.contains($0.lowercased()) }) else {
+        return model
+    }
+    let parts = model.split(separator: "-").map(String.init)
+    let numbers = parts.filter { part in part.count <= 2 && part.allSatisfy { $0.isNumber } }
+    return numbers.isEmpty ? family : family + " " + numbers.joined(separator: ".")
 }
 
 extension Int {

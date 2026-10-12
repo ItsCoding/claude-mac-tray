@@ -13,7 +13,8 @@ final class UsageStoreTests: XCTestCase {
             return ClaudeMessage(timestamp: date, role: "assistant", model: model,
                                   inputTokens: tokens, outputTokens: 0,
                                   cacheReadTokens: 0, cacheWriteTokens: 0,
-                                  toolCalls: tc, projectPath: "/p", isBedrock: false)
+                                  toolCalls: tc, projectPath: "/p", isBedrock: false,
+                                  linesAdded: 0, linesRemoved: 0)
         }
 
         return [
@@ -39,6 +40,36 @@ final class UsageStoreTests: XCTestCase {
         store.sessions = makeSessions()
         let weekSessions = store.filteredSessions(for: .thisWeek)
         XCTAssertEqual(weekSessions.count, 2)
+    }
+
+    @MainActor func test_modelBuckets_usesMessageTimestampsWhenSessionStartedBeforeInterval() {
+        let store = UsageStore()
+        let intervalStart = Date(timeIntervalSinceReferenceDate: 10_000)
+        let intervalEnd = intervalStart.addingTimeInterval(2 * 3600)
+        let inRange = intervalStart.addingTimeInterval(30 * 60)
+        let beforeRange = intervalStart.addingTimeInterval(-30 * 60)
+
+        func message(at timestamp: Date, inputTokens: Int) -> ClaudeMessage {
+            ClaudeMessage(timestamp: timestamp, role: "assistant", model: "claude-sonnet-4-6",
+                          inputTokens: inputTokens, outputTokens: 0,
+                          cacheReadTokens: 0, cacheWriteTokens: 0,
+                          toolCalls: [], projectPath: "/p", isBedrock: false,
+                          linesAdded: 0, linesRemoved: 0)
+        }
+
+        store.sessions = [
+            Session(id: UUID(), projectPath: "/p", startTime: beforeRange, endTime: inRange,
+                    messages: [
+                        message(at: beforeRange, inputTokens: 1_000),
+                        message(at: inRange, inputTokens: 2_000),
+                    ]),
+        ]
+
+        let buckets = store.modelBuckets(in: DateInterval(start: intervalStart, end: intervalEnd))
+
+        XCTAssertEqual(buckets.count, 1)
+        XCTAssertEqual(buckets.first?.model, "Sonnet 4.6")
+        XCTAssertEqual(buckets.first?.inputTokens, 2_000)
     }
 
     @MainActor func test_dailyTokenBuckets_allTime_hasEntryPerDay() {
