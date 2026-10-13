@@ -187,7 +187,7 @@ struct PredictionPanel: View {
             return ("Limit reached", String(format: "%.0f%% used · resets in %@", f.usedPercent, duration(f.hoursLeft)), .red)
         case .runsOut(let at):
             let mins = max(0, Int(f.resetsAt.timeIntervalSince(at) / 60))
-            return ("Will run out ~\(at.formatted(date: .omitted, time: .shortened)) before reset",
+            return ("Will run out ~\(at.formatted(date: .abbreviated, time: .shortened))",
                     "\(mins) min before reset · burning \(String(format: "%.1f", f.scenarioRate)) %/h", .red)
         }
     }
@@ -231,7 +231,7 @@ private struct PredictionChart: View {
                 .annotation(position: .top, alignment: .leading) { Text("limit").font(.caption2).foregroundStyle(.secondary) }
             RuleMark(x: .value("Now", f.now))
                 .foregroundStyle(Color.secondary).lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
-                .annotation(position: .bottom, alignment: .center) {
+                .annotation(position: .top, alignment: .leading, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
                     Text("now \(f.now.formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary)
                 }
             RuleMark(x: .value("Reset", f.resetsAt))
@@ -243,6 +243,10 @@ private struct PredictionChart: View {
                 .foregroundStyle(Color.blue).symbolSize(40)
             if case .runsOut(let at) = f.verdict, at <= f.resetsAt {
                 PointMark(x: .value("Time", at), y: .value("Limit", 100)).foregroundStyle(Color.red).symbolSize(55)
+                    .annotation(position: .bottom, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
+                        Text("out \(at.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()))")
+                            .font(.caption2.weight(.semibold)).foregroundStyle(.red)
+                    }
             }
         }
         .chartYScale(domain: 0...top)
@@ -253,7 +257,14 @@ private struct PredictionChart: View {
                 AxisValueLabel { if let d = v.as(Double.self) { Text("\(Int(d))%").font(.caption2) } }
             }
         }
-        .chartXAxis(.hidden)
-        .padding(.top, 14).padding(.bottom, 14)
+        .chartXAxis {
+            // Multi-day window: one tick per day; 5-hour window: one per hour.
+            let multiDay = f.resetsAt.timeIntervalSince(f.windowStart) > 2 * 86_400
+            AxisMarks(values: .stride(by: multiDay ? .day : .hour)) { _ in
+                AxisTick()
+                AxisValueLabel(format: multiDay ? .dateTime.weekday(.abbreviated).day() : .dateTime.hour().minute(), centered: false)
+            }
+        }
+        .padding(.top, 14)
     }
 }
