@@ -6,8 +6,17 @@ enum ModelStyle {
     /// Stable legend/stack order (most expensive → cheapest, then synthetic, then profiles).
     static let order = ["Opus", "Sonnet", "Haiku", "Fable", "Synthetic", "Claude.ai", "Bedrock", "OpenCode", "Added", "Removed"]
 
+    /// Family of a display name: "Sonnet 4.6" -> "Sonnet". Names outside `order` pass through.
+    static func family(_ name: String) -> String {
+        order.first { name == $0 || name.hasPrefix($0 + " ") } ?? name
+    }
+
+    static func rank(_ name: String) -> Int {
+        order.firstIndex(of: family(name)) ?? order.count
+    }
+
     static func color(_ model: String) -> Color {
-        switch model {
+        switch family(model) {
         case "Opus":      return .indigo
         case "Sonnet":    return .teal
         case "Haiku":     return .orange
@@ -32,10 +41,17 @@ enum ModelStyle {
     /// project names) cycles through a palette so bars are always distinct.
     static func scale(for models: some Sequence<String>) -> (domain: [String], range: [Color]) {
         let present = Set(models)
-        let known = order.filter(present.contains)
-        let extra = present.subtracting(order).sorted()
+        let known = present.filter { order.contains(family($0)) }.sorted { (rank($0), $0) < (rank($1), $1) }
+        let extra = present.subtracting(known).sorted()
         let domain = known + extra
-        let range = known.map(color) + extra.enumerated().map { i, _ in palette[i % palette.count] }
+        // Versions of one family share a hue; fade the later ones so they stay distinguishable.
+        var seen: [String: Int] = [:]
+        let knownColors = known.map { name -> Color in
+            let n = seen[family(name), default: 0]
+            seen[family(name)] = n + 1
+            return color(name).opacity(max(0.4, 1 - 0.25 * Double(n)))
+        }
+        let range = knownColors + extra.enumerated().map { i, _ in palette[i % palette.count] }
         return (domain, range)
     }
 }

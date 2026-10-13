@@ -13,7 +13,7 @@ struct DailyBucket: Identifiable {
 /// bucket. Flattened so SwiftUI `Charts` can stack bars/areas by model directly.
 struct ModelBucket: Identifiable {
     let date: Date
-    let model: String   // short display name (e.g. "Opus")
+    let model: String   // short display name (e.g. "Opus 4.1")
     let inputTokens: Int
     let outputTokens: Int
     let cost: Double
@@ -52,6 +52,12 @@ final class UsageStore {
             sessionCostUSD: sessionCost, weeklyCostUSD: weeklyCost,
             budgets: config.budgets, now: now
         )
+    }
+
+    /// Latest real rate-limit windows (Claude.ai subscribers only), for the analytics predictor.
+    var rateWindows: (fiveHour: RateWindow?, sevenDay: RateWindow?, writtenAt: Date?) {
+        let s = snapshots.freshest
+        return (s?.fiveHour, s?.sevenDay, s?.writtenAt)
     }
 
     var projects: [ProjectSummary] {
@@ -179,33 +185,31 @@ final class UsageStore {
 
     /// Per-bucket, per-model tokens and cost over a range.
     func modelBuckets(in interval: DateInterval) -> [ModelBucket] {
-        _modelBuckets(sessions: filteredSessions(in: interval), unit: bucketUnit(in: interval))
+        _modelBuckets(messages: messages(in: interval), unit: bucketUnit(in: interval))
     }
 
     func modelBuckets(fromSessions sessions: [Session]) -> [ModelBucket] {
-        _modelBuckets(sessions: sessions, unit: bucketUnit(forSessions: sessions))
+        _modelBuckets(messages: sessions.flatMap(\.messages), unit: bucketUnit(forSessions: sessions))
     }
 
-    private func _modelBuckets(sessions: [Session], unit: BucketUnit) -> [ModelBucket] {
+    private func _modelBuckets(messages: [ClaudeMessage], unit: BucketUnit) -> [ModelBucket] {
         let cal = Calendar.current
         var tokens: [Date: [String: (Int, Int)]] = [:]
         var cost:   [Date: [String: Double]] = [:]
-        for session in sessions {
-            for msg in session.messages {
-                guard let raw = msg.model else { continue }
-                let bucket = truncate(msg.timestamp, to: unit, cal: cal)
-                let short = shortModelName(raw)
-                let tc = TokenCount(input: msg.inputTokens, output: msg.outputTokens,
-                                    cacheRead: msg.cacheReadTokens, cacheWrite: msg.cacheWriteTokens)
-                var byModel = tokens[bucket] ?? [:]
-                var io = byModel[short] ?? (0, 0)
-                io.0 += tc.input; io.1 += tc.output
-                byModel[short] = io
-                tokens[bucket] = byModel
-                var byCost = cost[bucket] ?? [:]
-                byCost[short, default: 0] += ModelPricing.cost(for: msg) ?? 0
-                cost[bucket] = byCost
-            }
+        for msg in messages {
+            guard let raw = msg.model else { continue }
+            let bucket = truncate(msg.timestamp, to: unit, cal: cal)
+            let short = shortModelName(raw)
+            let tc = TokenCount(input: msg.inputTokens, output: msg.outputTokens,
+                                cacheRead: msg.cacheReadTokens, cacheWrite: msg.cacheWriteTokens)
+            var byModel = tokens[bucket] ?? [:]
+            var io = byModel[short] ?? (0, 0)
+            io.0 += tc.input; io.1 += tc.output
+            byModel[short] = io
+            tokens[bucket] = byModel
+            var byCost = cost[bucket] ?? [:]
+            byCost[short, default: 0] += ModelPricing.cost(for: msg) ?? 0
+            cost[bucket] = byCost
         }
         return tokens.flatMap { date, models in
             models.map { short, io in
@@ -214,10 +218,7 @@ final class UsageStore {
             }
         }.sorted {
             if $0.date != $1.date { return $0.date < $1.date }
-            let order = ModelStyle.order
-            let i0 = order.firstIndex(of: $0.model) ?? order.count
-            let i1 = order.firstIndex(of: $1.model) ?? order.count
-            return i0 < i1
+            return (ModelStyle.rank($0.model), $0.model) < (ModelStyle.rank($1.model), $1.model)
         }
     }
 
@@ -413,14 +414,11 @@ final class UsageStore {
     func forecastRunway() -> (fiveHour: Double?, weekly: Double?) {
         let snap = snapshots.freshest
 
+        // Shared math with the analytics prediction panel.
         func runway(window: RateWindow?, windowDurationH: Double) -> Double? {
-            guard let w = window, w.usedPercentage > 2 else { return nil }
-            let timeLeft = max(0, w.resetsAt.timeIntervalSinceNow / 3600)
-            let elapsed = windowDurationH - timeLeft
-            guard elapsed > 0.1 else { return nil }
-            let ratePerHour = (w.usedPercentage / 100.0) / elapsed
-            guard ratePerHour > 0 else { return nil }
-            return (1.0 - w.usedPercentage / 100.0) / ratePerHour
+            guard let w = window else { return nil }
+            return RunwayPredictor.averageRunwayHours(usedPercent: w.usedPercentage, resetsAt: w.resetsAt,
+                                                      windowHours: windowDurationH)
         }
 
         return (

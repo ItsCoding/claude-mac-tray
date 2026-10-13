@@ -61,4 +61,12 @@ final class ModelTests: XCTestCase {
                               messages: [message])
         XCTAssertEqual(session.profile, .bedrock)
     }
+
+    func test_shortModelName_showsFamilyAndVersion() {
+        XCTAssertEqual(shortModelName("claude-sonnet-5-5"), "Sonnet 5.5")
+        XCTAssertEqual(shortModelName("claude-opus-4-1-20250805"), "Opus 4.1")
+        XCTAssertEqual(shortModelName("claude-3-7-sonnet-20250219"), "Sonnet 3.7")
+        XCTAssertEqual(shortModelName("claude-sonnet-5"), "Sonnet 5")
+        XCTAssertEqual(shortModelName("claude-future-unknown-99"), "claude-future-unknown-99")
+    }
 }
